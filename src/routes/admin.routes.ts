@@ -1,10 +1,11 @@
+import "dotenv/config";
 import { Router, Request, Response, NextFunction } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { prisma } from "../../lib/prisma.js";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || "knex-admin-secret-2025";
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 // Auth middleware
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {

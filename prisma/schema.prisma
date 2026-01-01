@@ -30,3 +30,55 @@ model Admin {
   permissions String[] @default([])
   createdAt   DateTime @default(now())
 }
+
+model Category {
+  id            Int           @id @default(autoincrement())
+  name          String        @unique
+  slug          String        @unique
+  icon          String?
+  subcategories SubCategory[]
+  createdAt     DateTime      @default(now())
+}
+
+model SubCategory {
+  id         Int       @id @default(autoincrement())
+  name       String
+  slug       String
+  categoryId Int
+  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  products   Product[]
+  createdAt  DateTime  @default(now())
+
+  @@unique([categoryId, slug])
+}
+
+model Brand {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  slug      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model Product {
+  id            Int         @id @default(autoincrement())
+  title         String
+  slug          String      @unique
+  description   String?
+  price         Float
+  originalPrice Float?
+  discount      Int?
+  rating        Float       @default(0)
+  totalRatings  Int         @default(0)
+  totalReviews  Int         @default(0)
+  images        String[]
+  features      String[]
+  stock         Int         @default(0)
+  isActive      Boolean     @default(true)
+  subcategoryId Int
+  subcategory   SubCategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  brandId       Int?
+  brand         Brand?      @relation(fields: [brandId], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}

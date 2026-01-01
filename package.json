@@ -8,6 +8,7 @@
     "build": "tsc",
     "script": "tsx src/script.ts",
     "seed": "tsx src/seed.ts",
+    "seed:categories": "tsx src/seedCategories.ts",
     "studio": "prisma studio",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate"

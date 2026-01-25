@@ -7,19 +7,19 @@ const router = Router();
 // Get all products with filters
 router.get("/", async (req, res) => {
     const { category, subcategory, brand, minPrice, maxPrice, sort, page = "1", limit = "20" } = req.query;
-    
+
     const where: any = { isActive: true };
-    
+
     if (subcategory) {
         where.subcategory = { slug: subcategory as string };
     } else if (category) {
         where.subcategory = { category: { slug: category as string } };
     }
-    
+
     if (brand) {
         where.brand = { slug: brand as string };
     }
-    
+
     if (minPrice || maxPrice) {
         where.price = {};
         if (minPrice) where.price.gte = parseFloat(minPrice as string);
@@ -32,7 +32,7 @@ router.get("/", async (req, res) => {
     else if (sort === "rating") orderBy = { rating: "desc" };
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
-    
+
     const [products, total] = await Promise.all([
         prisma.product.findMany({
             where,
@@ -50,7 +50,7 @@ router.get("/", async (req, res) => {
 // Get brands for a category/subcategory
 router.get("/brands", async (req, res) => {
     const { category, subcategory } = req.query;
-    
+
     const where: any = { isActive: true };
     if (subcategory) {
         where.subcategory = { slug: subcategory as string };

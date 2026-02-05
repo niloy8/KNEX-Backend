@@ -5,30 +5,41 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../../lib/prisma.js";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET!;
+const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-key-change-in-production";
 
 // Auth middleware
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
     const token = req.headers.authorization?.replace("Bearer ", "");
-    if (!token) return res.status(401).json({ error: "No token" });
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
     try {
         const decoded = jwt.verify(token, JWT_SECRET) as { id: number };
         const admin = await prisma.admin.findUnique({ where: { id: decoded.id } });
         if (!admin) return res.status(401).json({ error: "Invalid token" });
         (req as any).admin = admin;
         next();
-    } catch { res.status(401).json({ error: "Invalid token" }); }
+    } catch (error) {
+        console.error("Auth error:", error);
+        res.status(401).json({ error: "Invalid token" });
+    }
 };
 
 // Login
 router.post("/login", async (req, res) => {
-    const { email, password } = req.body;
-    const admin = await prisma.admin.findUnique({ where: { email } });
-    if (!admin || !(await bcrypt.compare(password, admin.password))) {
-        return res.status(401).json({ error: "Invalid credentials" });
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ error: "Email and password are required" });
+        }
+        const admin = await prisma.admin.findUnique({ where: { email } });
+        if (!admin || !(await bcrypt.compare(password, admin.password))) {
+            return res.status(401).json({ error: "Invalid credentials" });
+        }
+        const token = jwt.sign({ id: admin.id }, JWT_SECRET, { expiresIn: "7d" });
+        res.json({ token, admin: { id: admin.id, email: admin.email, name: admin.name, role: admin.role, permissions: admin.permissions } });
+    } catch (error) {
+        console.error("Login error:", error);
+        res.status(500).json({ error: "Login failed" });
     }
-    const token = jwt.sign({ id: admin.id }, JWT_SECRET, { expiresIn: "7d" });
-    res.json({ token, admin: { id: admin.id, email: admin.email, name: admin.name, role: admin.role, permissions: admin.permissions } });
 });
 
 // Get current admin

@@ -8,6 +8,8 @@ import { categoryRouter } from './routes/category.routes.js';
 import { productRouter } from './routes/product.routes.js';
 import { brandRouter } from './routes/brand.routes.js';
 import { uploadRouter } from './routes/upload.routes.js';
+import { cartRouter } from './routes/cart.routes.js';
+import { wishlistRouter } from './routes/wishlist.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,6 +28,8 @@ app.use('/api/categories', categoryRouter);
 app.use('/api/products', productRouter);
 app.use('/api/brands', brandRouter);
 app.use('/api/upload', uploadRouter);
+app.use('/api/cart', cartRouter);
+app.use('/api/wishlist', wishlistRouter);
 
 
 app.get("/", (req, res) => {

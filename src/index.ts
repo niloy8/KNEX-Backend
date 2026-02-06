@@ -10,6 +10,7 @@ import { brandRouter } from './routes/brand.routes.js';
 import { uploadRouter } from './routes/upload.routes.js';
 import { cartRouter } from './routes/cart.routes.js';
 import { wishlistRouter } from './routes/wishlist.routes.js';
+import { orderRouter } from './routes/order.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,6 +31,7 @@ app.use('/api/brands', brandRouter);
 app.use('/api/upload', uploadRouter);
 app.use('/api/cart', cartRouter);
 app.use('/api/wishlist', wishlistRouter);
+app.use('/api/orders', orderRouter);
 
 
 app.get("/", (req, res) => {

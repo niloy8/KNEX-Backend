@@ -20,6 +20,7 @@ model User {
   password      String
   cartItems     CartItem[]
   wishlistItems WishlistItem[]
+  orders        Order[]
   createdAt     DateTime       @default(now())
 }
 
@@ -136,4 +137,37 @@ model WishlistItem {
   createdAt DateTime @default(now())
 
   @@unique([userId, productId])
+}
+
+model Order {
+  id              Int         @id @default(autoincrement())
+  orderNumber     String      @unique
+  userId          Int
+  user            User        @relation(fields: [userId], references: [id])
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  deliveryAddress String
+  deliveryArea    String // "inside" or "outside" Dhaka
+  deliveryCharge  Float
+  subtotal        Float
+  total           Float
+  paymentMethod   String      @default("cod")
+  paymentStatus   String      @default("pending") // pending, paid, failed
+  status          String      @default("pending") // pending, processing, shipped, delivered, cancelled
+  notes           String?
+  items           OrderItem[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   Int
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId Int
+  title     String
+  price     Float
+  quantity  Int
+  image     String?
 }

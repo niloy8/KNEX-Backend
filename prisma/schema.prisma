@@ -64,33 +64,35 @@ model Brand {
 }
 
 model Product {
-  id            Int              @id @default(autoincrement())
-  title         String
-  slug          String           @unique
-  description   String?
-  price         Float
-  originalPrice Float?
-  discount      Int?
-  rating        Float            @default(0)
-  totalRatings  Int              @default(0)
-  totalReviews  Int              @default(0)
-  images        String[]
-  features      String[]
-  stock         Int              @default(0)
-  sku           String?
-  colors        String[]
-  sizes         String[]
-  productType   String           @default("simple") // simple, variable
-  swatchType    String? // color, image
-  isActive      Boolean          @default(true)
-  subcategoryId Int
-  subcategory   SubCategory      @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
-  brandId       Int?
-  brand         Brand?           @relation(fields: [brandId], references: [id])
-  reviews       Review[]
-  variants      ProductVariant[]
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id             Int              @id @default(autoincrement())
+  title          String
+  slug           String           @unique
+  description    String?
+  price          Float
+  originalPrice  Float?
+  discount       Int?
+  rating         Float            @default(0)
+  totalRatings   Int              @default(0)
+  totalReviews   Int              @default(0)
+  images         String[]
+  features       String[]
+  tags           String[]
+  customVariants Json? // For RAM/Storage type variants: [{name: "RAM", values: ["4GB", "8GB"]}]
+  stock          Int              @default(0)
+  sku            String?
+  colors         String[]
+  sizes          String[]
+  productType    String           @default("simple") // simple, variable
+  swatchType     String? // color, image
+  isActive       Boolean          @default(true)
+  subcategoryId  Int
+  subcategory    SubCategory      @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  brandId        Int?
+  brand          Brand?           @relation(fields: [brandId], references: [id])
+  reviews        Review[]
+  variants       ProductVariant[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 }
 
 model ProductVariant {
@@ -118,15 +120,19 @@ model Review {
 }
 
 model CartItem {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productId Int
-  quantity  Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId        Int
+  quantity         Int      @default(1)
+  selectedColor    String?
+  selectedSize     String?
+  selectedVariant  Json? // {id, name, image, price} for image swatches
+  customSelections Json? // {RAM: "8GB", Storage: "256GB"} for custom variants
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  @@unique([userId, productId])
+  @@unique([userId, productId, selectedColor, selectedSize])
 }
 
 model WishlistItem {
@@ -162,12 +168,16 @@ model Order {
 }
 
 model OrderItem {
-  id        Int     @id @default(autoincrement())
-  orderId   Int
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId Int
-  title     String
-  price     Float
-  quantity  Int
-  image     String?
+  id               Int     @id @default(autoincrement())
+  orderId          Int
+  order            Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId        Int
+  title            String
+  price            Float
+  quantity         Int
+  image            String?
+  selectedColor    String?
+  selectedSize     String?
+  selectedVariant  Json? // {id, name, image, price} for image swatches
+  customSelections Json? // {RAM: "8GB", Storage: "256GB"} for custom variants
 }

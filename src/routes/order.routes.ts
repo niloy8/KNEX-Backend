@@ -81,7 +81,7 @@ orderRouter.post('/', async (req: Request, res: Response) => {
     }
 
     try {
-        // Get user's cart items
+        // Get user's cart items with variant info
         const cartItems = await prisma.cartItem.findMany({
             where: { userId },
         });
@@ -100,16 +100,25 @@ orderRouter.post('/', async (req: Request, res: Response) => {
                 title: true,
                 price: true,
                 images: true,
+                variants: {
+                    select: { id: true, name: true, image: true, price: true }
+                }
             },
         });
 
         const productMap = new Map(products.map(p => [p.id, p]));
 
-        // Calculate totals
+        // Calculate totals and prepare order items with variant info
         let subtotal = 0;
         const orderItems = cartItems.map(item => {
             const product = productMap.get(item.productId);
-            const price = product?.price || 0;
+            const selectedVariant = item.selectedVariant as { id?: number; name?: string; image?: string; price?: number } | null;
+            const customSelections = item.customSelections as Record<string, string> | null;
+
+            // Use variant price if selected, else product price
+            const price = selectedVariant?.price || product?.price || 0;
+            const image = selectedVariant?.image || product?.images?.[0] || '';
+
             subtotal += price * item.quantity;
 
             return {
@@ -117,14 +126,18 @@ orderRouter.post('/', async (req: Request, res: Response) => {
                 title: product?.title || 'Unknown Product',
                 price,
                 quantity: item.quantity,
-                image: product?.images?.[0] || '',
+                image,
+                selectedColor: item.selectedColor,
+                selectedSize: item.selectedSize,
+                selectedVariant: selectedVariant || undefined,
+                customSelections: customSelections || undefined,
             };
         });
 
         const deliveryCharge = deliveryArea === 'inside' ? 80 : 150;
         const total = subtotal + deliveryCharge;
 
-        // Create order with items
+        // Create order with items including variant info
         const order = await prisma.order.create({
             data: {
                 orderNumber: generateOrderNumber(),

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { Router } from "express";
+import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../lib/prisma.js";
 
 const router = Router();
@@ -30,6 +31,8 @@ const transformProduct = (p: any) => ({
     images: p.images || [],
     gallery: p.images?.slice(1) || [],
     features: p.features || [],
+    tags: p.tags || [],
+    customVariants: p.customVariants || [], // For RAM/Storage type variants
     colors: p.colors || [],
     sizes: p.sizes || [],
     productType: p.productType || "simple",
@@ -153,9 +156,9 @@ router.get("/:idOrSlug", async (req, res) => {
 // Create product
 router.post("/", async (req, res) => {
     try {
-        const { title, description, price, originalPrice, discount, image, gallery, images, features, colors, sizes, stock, stockQuantity, subcategoryId, subCategoryId, brandId, rating, productType, swatchType, variants, imageSwatch } = req.body;
+        const { title, description, price, originalPrice, discount, image, gallery, images, features, tags, colors, sizes, stock, stockQuantity, subcategoryId, subCategoryId, brandId, rating, productType, swatchType, variants, imageSwatch } = req.body;
 
-        console.log("Creating product:", { title, productType, swatchType, imageSwatch });
+        console.log("Creating product:", { title, productType, swatchType, imageSwatch, variants, tags });
 
         if (!title || !price) return res.status(400).json({ error: "Title and price are required" });
 
@@ -179,7 +182,7 @@ router.post("/", async (req, res) => {
         }
 
         // Build variants data from imageSwatch (color/image variants with images)
-        // Note: 'variants' from frontend is for RAM/Storage type variants (name+values), not ProductVariant model
+        // Note: 'variants' from frontend is for RAM/Storage type variants (name+values), stored in customVariants
         let variantsData: { name: string; image: string; images: string[]; stock: number }[] = [];
         if (imageSwatch && Array.isArray(imageSwatch) && imageSwatch.length > 0) {
             variantsData = imageSwatch.map((s: any) => ({
@@ -190,6 +193,10 @@ router.post("/", async (req, res) => {
             }));
             console.log("Image swatches to create:", JSON.stringify(variantsData, null, 2));
         }
+
+        // Store RAM/Storage type variants in customVariants field
+        const customVariantsData = variants && Array.isArray(variants) && variants.length > 0 ? variants : Prisma.JsonNull;
+        console.log("Custom variants to save:", JSON.stringify(customVariantsData, null, 2));
 
         console.log("Variants to create:", variantsData.length);
 
@@ -204,6 +211,8 @@ router.post("/", async (req, res) => {
                 rating: rating ? Number(rating) : 0,
                 images: productImages,
                 features: features || [],
+                tags: tags || [],
+                customVariants: customVariantsData,
                 colors: colors || [],
                 sizes: sizes || [],
                 productType: productType || "simple",
@@ -230,7 +239,7 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
     try {
         const id = parseInt(req.params.id);
-        const { title, description, price, originalPrice, discount, image, gallery, images, features, colors, sizes, stock, stockQuantity, sku, subcategoryId, subCategoryId, brandId, isActive, inStock, rating, productType, swatchType, variants, imageSwatch } = req.body;
+        const { title, description, price, originalPrice, discount, image, gallery, images, features, tags, colors, sizes, stock, stockQuantity, sku, subcategoryId, subCategoryId, brandId, isActive, inStock, rating, productType, swatchType, variants, imageSwatch } = req.body;
 
         const data: any = {};
         if (title !== undefined) data.title = title;
@@ -240,11 +249,18 @@ router.put("/:id", async (req, res) => {
         if (discount !== undefined) data.discount = Number(discount);
         if (rating !== undefined) data.rating = Number(rating);
         if (features !== undefined) data.features = features;
+        if (tags !== undefined) data.tags = tags;
         if (colors !== undefined) data.colors = colors;
         if (sizes !== undefined) data.sizes = sizes;
         if (sku !== undefined) data.sku = sku;
         if (productType !== undefined) data.productType = productType;
         if (swatchType !== undefined) data.swatchType = swatchType;
+
+        // Store RAM/Storage type variants in customVariants field
+        if (variants !== undefined) {
+            data.customVariants = variants && Array.isArray(variants) && variants.length > 0 ? variants : Prisma.JsonNull;
+            console.log("Updating custom variants:", JSON.stringify(data.customVariants, null, 2));
+        }
 
         if (images !== undefined) {
             data.images = images;

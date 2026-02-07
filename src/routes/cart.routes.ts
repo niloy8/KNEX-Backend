@@ -45,6 +45,12 @@ cartRouter.get('/', async (req: Request, res: Response) => {
                 slug: true,
                 price: true,
                 images: true,
+                colors: true,
+                sizes: true,
+                customVariants: true,
+                variants: {
+                    select: { id: true, name: true, image: true, price: true }
+                }
             },
         });
 
@@ -52,14 +58,25 @@ cartRouter.get('/', async (req: Request, res: Response) => {
 
         const items = cartItems.map(item => {
             const product = productMap.get(item.productId);
+            const selectedVariant = item.selectedVariant as { id?: number; name?: string; image?: string; price?: number } | null;
+            const customSelections = item.customSelections as Record<string, string> | null;
+
+            // Use variant price if selected, else product price
+            const price = selectedVariant?.price || product?.price || 0;
+            const image = selectedVariant?.image || product?.images?.[0] || '';
+
             return {
                 id: item.id.toString(),
                 productId: item.productId,
                 quantity: item.quantity,
                 title: product?.title || '',
                 slug: product?.slug || '',
-                price: product?.price || 0,
-                image: product?.images?.[0] || '',
+                price,
+                image,
+                selectedColor: item.selectedColor,
+                selectedSize: item.selectedSize,
+                selectedVariant,
+                customSelections,
             };
         });
 
@@ -78,7 +95,7 @@ cartRouter.post('/', async (req: Request, res: Response) => {
         return;
     }
 
-    const { productId, quantity = 1 } = req.body;
+    const { productId, quantity = 1, selectedColor, selectedSize, selectedVariant, customSelections } = req.body;
 
     if (!productId) {
         res.status(400).json({ error: 'Product ID is required' });
@@ -86,21 +103,41 @@ cartRouter.post('/', async (req: Request, res: Response) => {
     }
 
     try {
-        const cartItem = await prisma.cartItem.upsert({
-            where: {
-                userId_productId: { userId, productId: Number(productId) },
-            },
-            update: {
-                quantity: { increment: quantity },
-            },
-            create: {
-                userId,
-                productId: Number(productId),
-                quantity,
-            },
+        // Prepare the where clause for finding existing cart item
+        const whereClause = {
+            userId,
+            productId: Number(productId),
+            selectedColor: selectedColor || null,
+            selectedSize: selectedSize || null,
+        };
+
+        // Check if item with same product and options exists
+        const existingItem = await prisma.cartItem.findFirst({
+            where: whereClause,
         });
 
-        res.json({ success: true, cartItem });
+        if (existingItem) {
+            // Update quantity
+            const cartItem = await prisma.cartItem.update({
+                where: { id: existingItem.id },
+                data: { quantity: existingItem.quantity + quantity },
+            });
+            res.json({ success: true, cartItem });
+        } else {
+            // Create new cart item
+            const cartItem = await prisma.cartItem.create({
+                data: {
+                    userId,
+                    productId: Number(productId),
+                    quantity,
+                    selectedColor: selectedColor || null,
+                    selectedSize: selectedSize || null,
+                    selectedVariant: selectedVariant || null,
+                    customSelections: customSelections || null,
+                },
+            });
+            res.json({ success: true, cartItem });
+        }
     } catch (error) {
         console.error('Error adding to cart:', error);
         res.status(500).json({ error: 'Failed to add to cart' });
@@ -108,14 +145,14 @@ cartRouter.post('/', async (req: Request, res: Response) => {
 });
 
 // Update cart item quantity
-cartRouter.put('/:productId', async (req: Request, res: Response) => {
+cartRouter.put('/:itemId', async (req: Request, res: Response) => {
     const userId = getUserFromToken(req);
     if (!userId) {
         res.status(401).json({ error: 'Unauthorized' });
         return;
     }
 
-    const { productId } = req.params;
+    const { itemId } = req.params;
     const { quantity } = req.body;
 
     if (quantity < 1) {
@@ -124,10 +161,18 @@ cartRouter.put('/:productId', async (req: Request, res: Response) => {
     }
 
     try {
+        // Verify the cart item belongs to the user
+        const existingItem = await prisma.cartItem.findFirst({
+            where: { id: Number(itemId), userId },
+        });
+
+        if (!existingItem) {
+            res.status(404).json({ error: 'Cart item not found' });
+            return;
+        }
+
         const cartItem = await prisma.cartItem.update({
-            where: {
-                userId_productId: { userId, productId: Number(productId) },
-            },
+            where: { id: Number(itemId) },
             data: { quantity },
         });
 
@@ -139,20 +184,28 @@ cartRouter.put('/:productId', async (req: Request, res: Response) => {
 });
 
 // Remove from cart
-cartRouter.delete('/:productId', async (req: Request, res: Response) => {
+cartRouter.delete('/:itemId', async (req: Request, res: Response) => {
     const userId = getUserFromToken(req);
     if (!userId) {
         res.status(401).json({ error: 'Unauthorized' });
         return;
     }
 
-    const { productId } = req.params;
+    const { itemId } = req.params;
 
     try {
+        // Verify the cart item belongs to the user
+        const existingItem = await prisma.cartItem.findFirst({
+            where: { id: Number(itemId), userId },
+        });
+
+        if (!existingItem) {
+            res.status(404).json({ error: 'Cart item not found' });
+            return;
+        }
+
         await prisma.cartItem.delete({
-            where: {
-                userId_productId: { userId, productId: Number(productId) },
-            },
+            where: { id: Number(itemId) },
         });
 
         res.json({ success: true });
@@ -170,7 +223,7 @@ cartRouter.post('/sync', async (req: Request, res: Response) => {
         return;
     }
 
-    const { items } = req.body; // Array of { productId, quantity }
+    const { items } = req.body; // Array of { productId, quantity, selectedColor, selectedSize, selectedVariant, customSelections }
 
     if (!items || !Array.isArray(items)) {
         res.status(400).json({ error: 'Items array is required' });
@@ -180,19 +233,35 @@ cartRouter.post('/sync', async (req: Request, res: Response) => {
     try {
         // Upsert each item
         for (const item of items) {
-            await prisma.cartItem.upsert({
-                where: {
-                    userId_productId: { userId, productId: Number(item.productId) },
-                },
-                update: {
-                    quantity: { increment: item.quantity },
-                },
-                create: {
-                    userId,
-                    productId: Number(item.productId),
-                    quantity: item.quantity,
-                },
+            const whereClause = {
+                userId,
+                productId: Number(item.productId),
+                selectedColor: item.selectedColor || null,
+                selectedSize: item.selectedSize || null,
+            };
+
+            const existingItem = await prisma.cartItem.findFirst({
+                where: whereClause,
             });
+
+            if (existingItem) {
+                await prisma.cartItem.update({
+                    where: { id: existingItem.id },
+                    data: { quantity: existingItem.quantity + item.quantity },
+                });
+            } else {
+                await prisma.cartItem.create({
+                    data: {
+                        userId,
+                        productId: Number(item.productId),
+                        quantity: item.quantity,
+                        selectedColor: item.selectedColor || null,
+                        selectedSize: item.selectedSize || null,
+                        selectedVariant: item.selectedVariant || null,
+                        customSelections: item.customSelections || null,
+                    },
+                });
+            }
         }
 
         res.json({ success: true });

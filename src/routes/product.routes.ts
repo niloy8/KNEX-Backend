@@ -387,4 +387,28 @@ router.get("/:id/reviews", async (req, res) => {
     }
 });
 
+// Get low stock products (Admin)
+router.get("/admin/low-stock", async (req, res) => {
+    try {
+        const threshold = parseInt(req.query.threshold as string) || 10;
+
+        const products = await prisma.product.findMany({
+            where: {
+                stock: { lte: threshold },
+                isActive: true,
+            },
+            include: {
+                subcategory: { select: { name: true } },
+            },
+            orderBy: { stock: "asc" },
+            take: 10,
+        });
+
+        res.json({ products });
+    } catch (error: any) {
+        console.error("Error fetching low stock products:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 export const productRouter = router;

@@ -294,7 +294,142 @@ orderRouter.get('/admin/all', async (req: Request, res: Response) => {
     }
 });
 
-// Get single order (Admin)
+// Get order statistics (Admin) - MUST be before /:id route
+orderRouter.get('/admin/stats/summary', async (req: Request, res: Response) => {
+    const admin = getAdminFromToken(req);
+    if (!admin) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+    }
+
+    try {
+        const [
+            totalOrders,
+            pendingOrders,
+            processingOrders,
+            deliveredOrders,
+            cancelledOrders,
+            totalRevenue,
+        ] = await Promise.all([
+            prisma.order.count(),
+            prisma.order.count({ where: { status: 'pending' } }),
+            prisma.order.count({ where: { status: 'processing' } }),
+            prisma.order.count({ where: { status: 'delivered' } }),
+            prisma.order.count({ where: { status: 'cancelled' } }),
+            prisma.order.aggregate({
+                where: { status: 'delivered' }, // Only count delivered orders as actual sales
+                _sum: { total: true },
+            }),
+        ]);
+
+        res.json({
+            totalOrders,
+            pendingOrders,
+            processingOrders,
+            deliveredOrders,
+            cancelledOrders,
+            totalRevenue: totalRevenue._sum.total || 0,
+        });
+    } catch (error) {
+        console.error('Error fetching stats:', error);
+        res.status(500).json({ error: 'Failed to fetch statistics' });
+    }
+});
+
+// Get sales chart data (Admin) - MUST be before /:id route
+orderRouter.get('/admin/stats/sales-chart', async (req: Request, res: Response) => {
+    const admin = getAdminFromToken(req);
+    if (!admin) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+    }
+
+    try {
+        const days = parseInt(req.query.days as string) || 7;
+        const result = [];
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        for (let i = days - 1; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            date.setHours(0, 0, 0, 0);
+
+            const nextDate = new Date(date);
+            nextDate.setDate(nextDate.getDate() + 1);
+
+            const [salesAgg, ordersCount] = await Promise.all([
+                prisma.order.aggregate({
+                    where: {
+                        createdAt: { gte: date, lt: nextDate },
+                        status: 'delivered', // Only count delivered orders as sales
+                    },
+                    _sum: { total: true },
+                }),
+                prisma.order.count({
+                    where: {
+                        createdAt: { gte: date, lt: nextDate },
+                        status: 'delivered', // Only count delivered orders
+                    },
+                }),
+            ]);
+
+            result.push({
+                day: dayNames[date.getDay()],
+                sales: salesAgg._sum.total || 0,
+                orders: ordersCount,
+            });
+        }
+
+        res.json(result);
+    } catch (error) {
+        console.error('Error fetching sales chart:', error);
+        res.status(500).json({ error: 'Failed to fetch sales chart data' });
+    }
+});
+
+// Get new orders for notifications (Admin) - MUST be before /:id route
+orderRouter.get('/admin/notifications', async (req: Request, res: Response) => {
+    const admin = getAdminFromToken(req);
+    if (!admin) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+    }
+
+    try {
+        const since = req.query.since ? new Date(req.query.since as string) : new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+        const newOrders = await prisma.order.findMany({
+            where: {
+                createdAt: { gt: since },
+            },
+            select: {
+                id: true,
+                orderNumber: true,
+                customerName: true,
+                total: true,
+                status: true,
+                createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+        });
+
+        const pendingCount = await prisma.order.count({
+            where: { status: 'pending' },
+        });
+
+        res.json({
+            orders: newOrders,
+            pendingCount,
+            lastCheck: new Date().toISOString(),
+        });
+    } catch (error) {
+        console.error('Error fetching notifications:', error);
+        res.status(500).json({ error: 'Failed to fetch notifications' });
+    }
+});
+
+// Get single order (Admin) - MUST be AFTER all specific /admin/* routes
 orderRouter.get('/admin/:id', async (req: Request, res: Response) => {
     const admin = getAdminFromToken(req);
     if (!admin) {
@@ -343,11 +478,49 @@ orderRouter.put('/admin/:id/status', async (req: Request, res: Response) => {
     const { status, paymentStatus, notes } = req.body;
 
     try {
+        // Get current order to check previous status
+        const currentOrder = await prisma.order.findUnique({
+            where: { id: Number(id) },
+            include: { items: true },
+        });
+
+        if (!currentOrder) {
+            res.status(404).json({ error: 'Order not found' });
+            return;
+        }
+
         const updateData: { status?: string; paymentStatus?: string; notes?: string } = {};
 
         if (status) updateData.status = status;
         if (paymentStatus) updateData.paymentStatus = paymentStatus;
         if (notes !== undefined) updateData.notes = notes;
+
+        // If status is changing to "delivered", update product stock
+        if (status === 'delivered' && currentOrder.status !== 'delivered') {
+            // Decrease stock for each item in the order
+            for (const item of currentOrder.items) {
+                await prisma.product.update({
+                    where: { id: item.productId },
+                    data: {
+                        stock: { decrement: item.quantity },
+                    },
+                });
+            }
+            // Mark payment as paid when order is delivered
+            updateData.paymentStatus = 'paid';
+        }
+
+        // If order was delivered and is being changed back (e.g., cancelled), restore stock
+        if (currentOrder.status === 'delivered' && status && status !== 'delivered') {
+            for (const item of currentOrder.items) {
+                await prisma.product.update({
+                    where: { id: item.productId },
+                    data: {
+                        stock: { increment: item.quantity },
+                    },
+                });
+            }
+        }
 
         const order = await prisma.order.update({
             where: { id: Number(id) },
@@ -383,47 +556,5 @@ orderRouter.delete('/admin/:id', async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Error deleting order:', error);
         res.status(500).json({ error: 'Failed to delete order' });
-    }
-});
-
-// Get order statistics (Admin)
-orderRouter.get('/admin/stats/summary', async (req: Request, res: Response) => {
-    const admin = getAdminFromToken(req);
-    if (!admin) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
-
-    try {
-        const [
-            totalOrders,
-            pendingOrders,
-            processingOrders,
-            deliveredOrders,
-            cancelledOrders,
-            totalRevenue,
-        ] = await Promise.all([
-            prisma.order.count(),
-            prisma.order.count({ where: { status: 'pending' } }),
-            prisma.order.count({ where: { status: 'processing' } }),
-            prisma.order.count({ where: { status: 'delivered' } }),
-            prisma.order.count({ where: { status: 'cancelled' } }),
-            prisma.order.aggregate({
-                where: { status: { not: 'cancelled' } },
-                _sum: { total: true },
-            }),
-        ]);
-
-        res.json({
-            totalOrders,
-            pendingOrders,
-            processingOrders,
-            deliveredOrders,
-            cancelledOrders,
-            totalRevenue: totalRevenue._sum.total || 0,
-        });
-    } catch (error) {
-        console.error('Error fetching stats:', error);
-        res.status(500).json({ error: 'Failed to fetch statistics' });
     }
 });

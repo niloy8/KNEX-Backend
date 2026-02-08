@@ -21,6 +21,7 @@ model User {
   cartItems     CartItem[]
   wishlistItems WishlistItem[]
   orders        Order[]
+  addresses     Address[]
   createdAt     DateTime       @default(now())
 }
 
@@ -180,4 +181,19 @@ model OrderItem {
   selectedSize     String?
   selectedVariant  Json? // {id, name, image, price} for image swatches
   customSelections Json? // {RAM: "8GB", Storage: "256GB"} for custom variants
+}
+
+model Address {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   @default("home") // home, office, other
+  name      String // Recipient name
+  phone     String
+  address   String // Full address
+  area      String // inside or outside (Dhaka)
+  city      String   @default("Dhaka")
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

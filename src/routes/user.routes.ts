@@ -99,6 +99,36 @@ userRouter.get('/me', async (req: Request, res: Response) => {
     }
 });
 
+// Update current user profile
+userRouter.put('/me', async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+    }
+
+    try {
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
+
+        const { name, email } = req.body;
+
+        const updated = await prisma.user.update({
+            where: { id: decoded.userId },
+            data: {
+                ...(name && { name }),
+                ...(email && { email }),
+            },
+            select: { id: true, email: true, name: true },
+        });
+
+        res.json(updated);
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+
 // ========== ADMIN CUSTOMER ENDPOINTS ==========
 
 // Get customer statistics (Admin)

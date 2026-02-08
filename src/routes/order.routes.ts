@@ -348,36 +348,109 @@ orderRouter.get('/admin/stats/sales-chart', async (req: Request, res: Response) 
         const days = parseInt(req.query.days as string) || 7;
         const result = [];
         const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-        for (let i = days - 1; i >= 0; i--) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            date.setHours(0, 0, 0, 0);
+        if (days <= 7) {
+            // Daily data for 7 days
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                date.setHours(0, 0, 0, 0);
 
-            const nextDate = new Date(date);
-            nextDate.setDate(nextDate.getDate() + 1);
+                const nextDate = new Date(date);
+                nextDate.setDate(nextDate.getDate() + 1);
 
-            const [salesAgg, ordersCount] = await Promise.all([
-                prisma.order.aggregate({
-                    where: {
-                        createdAt: { gte: date, lt: nextDate },
-                        status: 'delivered', // Only count delivered orders as sales
-                    },
-                    _sum: { total: true },
-                }),
-                prisma.order.count({
-                    where: {
-                        createdAt: { gte: date, lt: nextDate },
-                        status: 'delivered', // Only count delivered orders
-                    },
-                }),
-            ]);
+                const [salesAgg, ordersCount] = await Promise.all([
+                    prisma.order.aggregate({
+                        where: {
+                            createdAt: { gte: date, lt: nextDate },
+                            status: 'delivered',
+                        },
+                        _sum: { total: true },
+                    }),
+                    prisma.order.count({
+                        where: {
+                            createdAt: { gte: date, lt: nextDate },
+                            status: 'delivered',
+                        },
+                    }),
+                ]);
 
-            result.push({
-                day: dayNames[date.getDay()],
-                sales: salesAgg._sum.total || 0,
-                orders: ordersCount,
-            });
+                result.push({
+                    day: dayNames[date.getDay()],
+                    label: `${date.getDate()}/${date.getMonth() + 1}`,
+                    sales: salesAgg._sum.total || 0,
+                    orders: ordersCount,
+                });
+            }
+        } else if (days <= 30) {
+            // Weekly data for month (4 weeks)
+            for (let i = 3; i >= 0; i--) {
+                const endDate = new Date();
+                endDate.setDate(endDate.getDate() - (i * 7));
+                endDate.setHours(23, 59, 59, 999);
+
+                const startDate = new Date(endDate);
+                startDate.setDate(startDate.getDate() - 6);
+                startDate.setHours(0, 0, 0, 0);
+
+                const [salesAgg, ordersCount] = await Promise.all([
+                    prisma.order.aggregate({
+                        where: {
+                            createdAt: { gte: startDate, lte: endDate },
+                            status: 'delivered',
+                        },
+                        _sum: { total: true },
+                    }),
+                    prisma.order.count({
+                        where: {
+                            createdAt: { gte: startDate, lte: endDate },
+                            status: 'delivered',
+                        },
+                    }),
+                ]);
+
+                result.push({
+                    day: `Week ${4 - i}`,
+                    label: `${startDate.getDate()}/${startDate.getMonth() + 1}-${endDate.getDate()}/${endDate.getMonth() + 1}`,
+                    sales: salesAgg._sum.total || 0,
+                    orders: ordersCount,
+                });
+            }
+        } else {
+            // Monthly data for year (12 months)
+            for (let i = 11; i >= 0; i--) {
+                const date = new Date();
+                date.setMonth(date.getMonth() - i);
+                const year = date.getFullYear();
+                const month = date.getMonth();
+
+                const startDate = new Date(year, month, 1);
+                const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+
+                const [salesAgg, ordersCount] = await Promise.all([
+                    prisma.order.aggregate({
+                        where: {
+                            createdAt: { gte: startDate, lte: endDate },
+                            status: 'delivered',
+                        },
+                        _sum: { total: true },
+                    }),
+                    prisma.order.count({
+                        where: {
+                            createdAt: { gte: startDate, lte: endDate },
+                            status: 'delivered',
+                        },
+                    }),
+                ]);
+
+                result.push({
+                    day: monthNames[month],
+                    label: `${monthNames[month]} ${year}`,
+                    sales: salesAgg._sum.total || 0,
+                    orders: ordersCount,
+                });
+            }
         }
 
         res.json(result);
@@ -396,11 +469,15 @@ orderRouter.get('/admin/notifications', async (req: Request, res: Response) => {
     }
 
     try {
-        const since = req.query.since ? new Date(req.query.since as string) : new Date(Date.now() - 24 * 60 * 60 * 1000);
+        // Get recent orders (last 48 hours) OR any pending orders
+        const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
-        const newOrders = await prisma.order.findMany({
+        const recentOrders = await prisma.order.findMany({
             where: {
-                createdAt: { gt: since },
+                OR: [
+                    { createdAt: { gt: twoDaysAgo } },
+                    { status: 'pending' },
+                ],
             },
             select: {
                 id: true,
@@ -411,7 +488,7 @@ orderRouter.get('/admin/notifications', async (req: Request, res: Response) => {
                 createdAt: true,
             },
             orderBy: { createdAt: 'desc' },
-            take: 10,
+            take: 15,
         });
 
         const pendingCount = await prisma.order.count({
@@ -419,7 +496,7 @@ orderRouter.get('/admin/notifications', async (req: Request, res: Response) => {
         });
 
         res.json({
-            orders: newOrders,
+            orders: recentOrders,
             pendingCount,
             lastCheck: new Date().toISOString(),
         });

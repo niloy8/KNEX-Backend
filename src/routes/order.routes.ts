@@ -60,6 +60,8 @@ const generateOrderNumber = (): string => {
 // Create new order (User)
 orderRouter.post('/', async (req: Request, res: Response) => {
     const userId = getUserFromToken(req);
+    console.log('POST /orders - userId from token:', userId);
+
     if (!userId) {
         res.status(401).json({ error: 'Unauthorized' });
         return;
@@ -162,6 +164,8 @@ orderRouter.post('/', async (req: Request, res: Response) => {
             },
         });
 
+        console.log(`Order created: ${order.orderNumber} for userId: ${order.userId}`);
+
         // Clear user's cart after successful order
         await prisma.cartItem.deleteMany({
             where: { userId },
@@ -185,12 +189,19 @@ orderRouter.post('/', async (req: Request, res: Response) => {
 // Get user's orders
 orderRouter.get('/my-orders', async (req: Request, res: Response) => {
     const userId = getUserFromToken(req);
+    console.log('GET /my-orders - userId from token:', userId);
+
     if (!userId) {
         res.status(401).json({ error: 'Unauthorized' });
         return;
     }
 
     try {
+        // First check if any orders exist at all for debugging
+        const totalOrders = await prisma.order.count();
+        const userOrders = await prisma.order.count({ where: { userId } });
+        console.log(`Total orders in DB: ${totalOrders}, Orders for user ${userId}: ${userOrders}`);
+
         const orders = await prisma.order.findMany({
             where: { userId },
             include: {
@@ -199,6 +210,7 @@ orderRouter.get('/my-orders', async (req: Request, res: Response) => {
             orderBy: { createdAt: 'desc' },
         });
 
+        console.log(`Returning ${orders.length} orders for user ${userId}`);
         res.json(orders);
     } catch (error) {
         console.error('Error fetching orders:', error);

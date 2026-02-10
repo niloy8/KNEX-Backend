@@ -7,10 +7,20 @@ node_modules
 
 /generated/prisma
 
+
+
+
+
+uploads/*
+!uploads/.gitkeep
+# Ignore log files
+
+
 .env.example
 
 /uploads/*
 !/uploads/.gitkeep
+
 
 
 uploads/*

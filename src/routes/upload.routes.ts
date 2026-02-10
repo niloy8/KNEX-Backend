@@ -107,7 +107,9 @@ router.post("/single", upload.single("image"), async (req, res) => {
 
         await fs.promises.writeFile(filePath, buffer);
 
-        const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.headers.host;
+        const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
         const imageUrl = `${baseUrl}/uploads/${filename}`;
 
         res.json({
@@ -131,7 +133,9 @@ router.post("/multiple", upload.array("images", 10), async (req, res) => {
             return res.status(400).json({ error: "No images provided" });
         }
 
-        const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.headers.host;
+        const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
         const results = [];
 
         for (const file of files) {

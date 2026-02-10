@@ -5,4 +5,4 @@ RUN npm install
 RUN DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres" npm run build
 ENV NODE_ENV=production
 EXPOSE 5000
-CMD ["node", "dist/index.js"]
+CMD ["npm", "start"]

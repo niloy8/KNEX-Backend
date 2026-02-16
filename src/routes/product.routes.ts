@@ -16,7 +16,55 @@ const generateSKU = () => {
 };
 
 // Transform product for frontend compatibility
-const transformProduct = (p: any) => ({
+// Define interface for the raw product data from Prisma including relations
+interface ProductSource {
+    id: number;
+    title: string;
+    slug: string;
+    description: string | null;
+    price: number;
+    originalPrice: number | null;
+    discount: number | null;
+    rating: number;
+    totalRatings: number;
+    totalReviews: number;
+    images: string[];
+    features: string[];
+    tags: string[];
+    customVariants: any; // Keep any for JSON types if structure is dynamic
+    colors: string[];
+    sizes: string[];
+    productType: string;
+    swatchType: string | null;
+    stock: number;
+    sku: string | null;
+    isActive: boolean;
+    subcategory: {
+        id: number;
+        name: string;
+        slug: string;
+        category: any;
+        categoryId: number;
+    } | null;
+    subcategoryId: number;
+    brand: any;
+    brandId: number | null;
+    reviews: any[];
+    createdAt: Date;
+    updatedAt: Date;
+    variants: {
+        id: number;
+        name: string;
+        image: string;
+        images: string[];
+        price: number | null;
+        stock: number;
+        sku: string | null;
+    }[];
+}
+
+// Transform product for frontend compatibility
+const transformProduct = (p: ProductSource) => ({
     id: p.id,
     title: p.title,
     slug: p.slug,
@@ -37,7 +85,7 @@ const transformProduct = (p: any) => ({
     sizes: p.sizes || [],
     productType: p.productType || "simple",
     swatchType: p.swatchType || null,
-    variants: (p.variants || []).map((v: any) => ({
+    variants: (p.variants || []).map((v) => ({
         id: v.id,
         name: v.name,
         image: v.image,
@@ -66,7 +114,7 @@ const transformProduct = (p: any) => ({
 router.get("/", async (req, res) => {
     try {
         const { category, subcategory, brand, minPrice, maxPrice, sort, search, inStock, page = "1", limit = "20" } = req.query;
-        const where: any = {};
+        const where: Prisma.ProductWhereInput = {};
 
         if (search) {
             where.OR = [
@@ -87,9 +135,9 @@ router.get("/", async (req, res) => {
         }
 
         if (inStock === "true") where.stock = { gt: 0 };
-        else if (inStock === "false") where.stock = 0;
+        else if (inStock === "false") where.stock = { equals: 0 };
 
-        let orderBy: any = { createdAt: "desc" };
+        let orderBy: Prisma.ProductOrderByWithRelationInput = { createdAt: "desc" };
         if (sort === "price-low") orderBy = { price: "asc" };
         else if (sort === "price-high") orderBy = { price: "desc" };
         else if (sort === "rating") orderBy = { rating: "desc" };
@@ -122,7 +170,7 @@ router.get("/", async (req, res) => {
 router.get("/brands", async (req, res) => {
     try {
         const { category, subcategory } = req.query;
-        const where: any = { isActive: true };
+        const where: Prisma.ProductWhereInput = { isActive: true };
 
         if (subcategory) where.subcategory = { slug: subcategory as string };
         else if (category) where.subcategory = { category: { slug: category as string } };
@@ -135,6 +183,14 @@ router.get("/brands", async (req, res) => {
     }
 });
 
+// Define interface for ImageSwatch
+interface ImageSwatch {
+    name?: string;
+    image?: string;
+    images?: string[];
+    stock?: number;
+}
+
 // Get single product by ID or slug
 router.get("/:idOrSlug", async (req, res) => {
     try {
@@ -146,7 +202,7 @@ router.get("/:idOrSlug", async (req, res) => {
         });
 
         if (!product) return res.status(404).json({ error: "Product not found" });
-        res.json(transformProduct(product));
+        res.json(transformProduct(product as unknown as ProductSource));
     } catch (error: any) {
         console.error("Error fetching product:", error);
         res.status(500).json({ error: error.message });
@@ -182,10 +238,9 @@ router.post("/", async (req, res) => {
         }
 
         // Build variants data from imageSwatch (color/image variants with images)
-        // Note: 'variants' from frontend is for RAM/Storage type variants (name+values), stored in customVariants
         let variantsData: { name: string; image: string; images: string[]; stock: number }[] = [];
         if (imageSwatch && Array.isArray(imageSwatch) && imageSwatch.length > 0) {
-            variantsData = imageSwatch.map((s: any) => ({
+            variantsData = imageSwatch.map((s: ImageSwatch) => ({
                 name: s.name || "Variant",
                 image: s.image || "",
                 images: s.images && Array.isArray(s.images) ? s.images : (s.image ? [s.image] : []),
@@ -228,7 +283,7 @@ router.post("/", async (req, res) => {
             include: { subcategory: { include: { category: true } }, brand: true, variants: true },
         });
 
-        res.json(transformProduct(product));
+        res.json(transformProduct(product as unknown as ProductSource));
     } catch (error: any) {
         console.error("Error creating product:", error);
         res.status(500).json({ error: error.message });
@@ -281,10 +336,9 @@ router.put("/:id", async (req, res) => {
         if (inStock !== undefined) data.isActive = inStock;
 
         // Handle variants update - delete existing and recreate
-        // Note: imageSwatch is the image swatches data, 'variants' is for RAM/Storage type variants
         let variantsData: { name: string; image: string; images: string[]; stock: number }[] = [];
         if (imageSwatch && Array.isArray(imageSwatch) && imageSwatch.length > 0) {
-            variantsData = imageSwatch.map((s: any) => ({
+            variantsData = imageSwatch.map((s: ImageSwatch) => ({
                 name: s.name || "Variant",
                 image: s.image || "",
                 images: s.images && Array.isArray(s.images) ? s.images : (s.image ? [s.image] : []),
@@ -309,7 +363,7 @@ router.put("/:id", async (req, res) => {
             include: { subcategory: { include: { category: true } }, brand: true, variants: true },
         });
 
-        res.json(transformProduct(product));
+        res.json(transformProduct(product as unknown as ProductSource));
     } catch (error: any) {
         console.error("Error updating product:", error);
         res.status(500).json({ error: error.message });

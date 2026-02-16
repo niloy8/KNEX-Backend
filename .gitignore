@@ -16,3 +16,6 @@ uploads/*
 # Ignore log files
 
 dist
+
+check_order_items.ts
+check_db.ts

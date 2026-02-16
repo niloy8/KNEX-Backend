@@ -3,6 +3,18 @@ import { prisma } from '../lib/prisma.js';
 import jwt from 'jsonwebtoken';
 export const cartRouter = Router();
 
+// Define shared interface for type safety
+interface CartItemData {
+    id: number;
+    userId: number;
+    productId: number;
+    quantity: number;
+    selectedColor: string | null;
+    selectedSize: string | null;
+    selectedVariant: { id?: number; name?: string; image?: string; price?: number } | null;
+    customSelections: Record<string, string> | null;
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Middleware to get user from token
@@ -36,7 +48,7 @@ cartRouter.get('/', async (req: Request, res: Response) => {
         });
 
         // Get product details for each cart item
-        const productIds = cartItems.map(item => item.productId);
+        const productIds = cartItems.map((item: any) => item.productId);
         const products = await prisma.product.findMany({
             where: { id: { in: productIds } },
             select: {
@@ -54,9 +66,24 @@ cartRouter.get('/', async (req: Request, res: Response) => {
             },
         });
 
-        const productMap = new Map(products.map(p => [p.id, p]));
+        // Define interface for the product with relations
+        interface ProductWithVariants {
+            id: number;
+            title: string;
+            slug: string;
+            price: number;
+            images: string[];
+            colors: string[];
+            sizes: string[];
+            customVariants: any;
+            variants: { id: number; name: string; image: string; price: number | null }[];
+        }
 
-        const items = cartItems.map(item => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const productMap = new Map<number, ProductWithVariants>(products.map((p: any) => [p.id, p]));
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const items = cartItems.map((item: any) => {
             const product = productMap.get(item.productId);
             const selectedVariant = item.selectedVariant as { id?: number; name?: string; image?: string; price?: number } | null;
             const customSelections = item.customSelections as Record<string, string> | null;
@@ -103,17 +130,25 @@ cartRouter.post('/', async (req: Request, res: Response) => {
     }
 
     try {
-        // Prepare the where clause for finding existing cart item
-        const whereClause = {
-            userId,
-            productId: Number(productId),
-            selectedColor: selectedColor || null,
-            selectedSize: selectedSize || null,
-        };
+        // Find all cart items for this user and product
+        // Cast the result to our interface since Prisma return types can be complex with JSON
+        const existingItems = (await prisma.cartItem.findMany({
+            where: {
+                userId,
+                productId: Number(productId),
+            },
+        })) as unknown as CartItemData[];
 
-        // Check if item with same product and options exists
-        const existingItem = await prisma.cartItem.findFirst({
-            where: whereClause,
+        // Find exact match including variants
+        const existingItem = existingItems.find((item) => {
+            const colorMatch = item.selectedColor === (selectedColor || null);
+            const sizeMatch = item.selectedSize === (selectedSize || null);
+
+            // For JSON, we stick to strict deep equality or check if both are null
+            const variantMatch = JSON.stringify(item.selectedVariant) === JSON.stringify(selectedVariant || null);
+            const customMatch = JSON.stringify(item.customSelections) === JSON.stringify(customSelections || null);
+
+            return colorMatch && sizeMatch && variantMatch && customMatch;
         });
 
         if (existingItem) {
@@ -125,6 +160,7 @@ cartRouter.post('/', async (req: Request, res: Response) => {
             res.json({ success: true, cartItem });
         } else {
             // Create new cart item
+            // Use undefined for null fields if Prisma types are strict, but usually null works for nullable fields
             const cartItem = await prisma.cartItem.create({
                 data: {
                     userId,
@@ -233,15 +269,23 @@ cartRouter.post('/sync', async (req: Request, res: Response) => {
     try {
         // Upsert each item
         for (const item of items) {
-            const whereClause = {
-                userId,
-                productId: Number(item.productId),
-                selectedColor: item.selectedColor || null,
-                selectedSize: item.selectedSize || null,
-            };
+            // Find all cart items for this user and product
+            const existingItems = (await prisma.cartItem.findMany({
+                where: {
+                    userId,
+                    productId: Number(item.productId),
+                },
+            })) as unknown as CartItemData[];
 
-            const existingItem = await prisma.cartItem.findFirst({
-                where: whereClause,
+            // Find exact match
+            const existingItem = existingItems.find((existing) => {
+                const colorMatch = existing.selectedColor === (item.selectedColor || null);
+                const sizeMatch = existing.selectedSize === (item.selectedSize || null);
+
+                const variantMatch = JSON.stringify(existing.selectedVariant) === JSON.stringify(item.selectedVariant || null);
+                const customMatch = JSON.stringify(existing.customSelections) === JSON.stringify(item.customSelections || null);
+
+                return colorMatch && sizeMatch && variantMatch && customMatch;
             });
 
             if (existingItem) {

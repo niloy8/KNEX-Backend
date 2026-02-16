@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -18,11 +12,11 @@ model User {
   name          String
   email         String         @unique
   password      String
-  cartItems     CartItem[]
-  wishlistItems WishlistItem[]
-  orders        Order[]
-  addresses     Address[]
   createdAt     DateTime       @default(now())
+  addresses     Address[]
+  cartItems     CartItem[]
+  orders        Order[]
+  wishlistItems WishlistItem[]
 }
 
 model Admin {
@@ -30,9 +24,9 @@ model Admin {
   email       String   @unique
   password    String
   name        String?
-  role        String   @default("admin") // superadmin, admin, manager
-  permissions String[] @default([])
   createdAt   DateTime @default(now())
+  permissions String[] @default([])
+  role        String   @default("admin")
 }
 
 model Category {
@@ -40,8 +34,8 @@ model Category {
   name          String        @unique
   slug          String        @unique
   icon          String?
-  subcategories SubCategory[]
   createdAt     DateTime      @default(now())
+  subcategories SubCategory[]
 }
 
 model SubCategory {
@@ -49,9 +43,9 @@ model SubCategory {
   name       String
   slug       String
   categoryId Int
-  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  products   Product[]
   createdAt  DateTime  @default(now())
+  products   Product[]
+  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@unique([categoryId, slug])
 }
@@ -60,8 +54,8 @@ model Brand {
   id        Int       @id @default(autoincrement())
   name      String    @unique
   slug      String    @unique
-  products  Product[]
   createdAt DateTime  @default(now())
+  products  Product[]
 }
 
 model Product {
@@ -77,71 +71,69 @@ model Product {
   totalReviews   Int              @default(0)
   images         String[]
   features       String[]
-  tags           String[]
-  customVariants Json? // For RAM/Storage type variants: [{name: "RAM", values: ["4GB", "8GB"]}]
   stock          Int              @default(0)
+  isActive       Boolean          @default(true)
+  subcategoryId  Int
+  brandId        Int?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
   sku            String?
   colors         String[]
   sizes          String[]
-  productType    String           @default("simple") // simple, variable
-  swatchType     String? // color, image
-  isActive       Boolean          @default(true)
-  subcategoryId  Int
-  subcategory    SubCategory      @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
-  brandId        Int?
+  productType    String           @default("simple")
+  swatchType     String?
+  customVariants Json?
+  tags           String[]
   brand          Brand?           @relation(fields: [brandId], references: [id])
-  reviews        Review[]
+  subcategory    SubCategory      @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
   variants       ProductVariant[]
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  reviews        Review[]
 }
 
 model ProductVariant {
   id        Int      @id @default(autoincrement())
-  name      String // e.g., "Red", "Blue", "Navy" or swatch name
-  image     String // Main variant image (for swatch display)
-  images    String[] // Full gallery for this variant
-  price     Float? // Optional price override for this variant
+  name      String
+  image     String
+  images    String[]
+  price     Float?
   stock     Int      @default(0)
   sku       String?
   productId Int
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 model Review {
   id        Int      @id @default(autoincrement())
-  rating    Int // 1-5 stars
+  rating    Int
   comment   String
   userName  String
   userEmail String?
   productId Int
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 model CartItem {
   id               Int      @id @default(autoincrement())
   userId           Int
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId        Int
   quantity         Int      @default(1)
-  selectedColor    String?
-  selectedSize     String?
-  selectedVariant  Json? // {id, name, image, price} for image swatches
-  customSelections Json? // {RAM: "8GB", Storage: "256GB"} for custom variants
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-
-  @@unique([userId, productId, selectedColor, selectedSize])
+  customSelections Json?
+  selectedColor    String?
+  selectedSize     String?
+  selectedVariant  Json?
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model WishlistItem {
   id        Int      @id @default(autoincrement())
   userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId Int
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, productId])
 }
@@ -150,50 +142,50 @@ model Order {
   id              Int         @id @default(autoincrement())
   orderNumber     String      @unique
   userId          Int
-  user            User        @relation(fields: [userId], references: [id])
   customerName    String
   customerEmail   String
   customerPhone   String
   deliveryAddress String
-  deliveryArea    String // "inside" or "outside" Dhaka
+  deliveryArea    String
   deliveryCharge  Float
   subtotal        Float
   total           Float
   paymentMethod   String      @default("cod")
-  paymentStatus   String      @default("pending") // pending, paid, failed
-  status          String      @default("pending") // pending, processing, shipped, delivered, cancelled
+  paymentStatus   String      @default("pending")
+  status          String      @default("pending")
   notes           String?
-  items           OrderItem[]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
+  user            User        @relation(fields: [userId], references: [id])
+  items           OrderItem[]
 }
 
 model OrderItem {
   id               Int     @id @default(autoincrement())
   orderId          Int
-  order            Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId        Int
   title            String
   price            Float
   quantity         Int
   image            String?
+  customSelections Json?
   selectedColor    String?
   selectedSize     String?
-  selectedVariant  Json? // {id, name, image, price} for image swatches
-  customSelections Json? // {RAM: "8GB", Storage: "256GB"} for custom variants
+  selectedVariant  Json?
+  order            Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model Address {
   id        Int      @id @default(autoincrement())
   userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String   @default("home") // home, office, other
-  name      String // Recipient name
+  type      String   @default("home")
+  name      String
   phone     String
-  address   String // Full address
-  area      String // inside or outside (Dhaka)
+  address   String
+  area      String
   city      String   @default("Dhaka")
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

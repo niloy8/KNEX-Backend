@@ -33,7 +33,7 @@ wishlistRouter.get('/', async (req: Request, res: Response) => {
         });
 
         // Get product details for each wishlist item
-        const productIds = wishlistItems.map(item => item.productId);
+        const productIds = wishlistItems.map((item: any) => item.productId);
         const products = await prisma.product.findMany({
             where: { id: { in: productIds } },
             select: {
@@ -47,9 +47,28 @@ wishlistRouter.get('/', async (req: Request, res: Response) => {
             },
         });
 
-        const productMap = new Map(products.map(p => [p.id, p]));
+        // Define interface for product details
+        interface ProductWithDetails {
+            id: number;
+            title: string;
+            slug: string;
+            price: number;
+            originalPrice: number | null;
+            images: string[];
+            stock: number;
+        }
 
-        const items = wishlistItems.map(item => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const productMap = new Map<number, ProductWithDetails>(products.map((p: any) => [p.id, p]));
+
+        interface WishlistItemData {
+            id: number;
+            productId: number;
+            createdAt: Date;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const items = (wishlistItems as any[]).map((item: WishlistItemData) => {
             const product = productMap.get(item.productId);
             return {
                 id: item.id.toString(),

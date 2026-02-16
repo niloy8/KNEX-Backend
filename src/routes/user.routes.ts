@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getUsers, createUser } from '../controllers/user.controller';
+import { getUsers, createUser } from '../controllers/user.controller.js';
 import { prisma } from '../lib/prisma.js';
 import jwt from 'jsonwebtoken';
 export const userRouter = Router();
@@ -238,9 +238,25 @@ userRouter.get('/admin/customers', async (req: Request, res: Response) => {
             },
         });
 
+        // Define interfaces for types
+        interface OrderSummary {
+            id: number;
+            total: number;
+            status: string;
+            createdAt: Date;
+        }
+
+        interface CustomerSummary {
+            id: number;
+            name: string;
+            email: string;
+            createdAt: Date;
+            orders: OrderSummary[];
+        }
+
         // Process and sort customers
-        const processedCustomers = customers.map(customer => {
-            const completedOrders = customer.orders.filter(o => o.status === 'delivered');
+        const processedCustomers = (customers as unknown as CustomerSummary[]).map((customer) => {
+            const completedOrders = customer.orders.filter((o) => o.status === 'delivered');
             const totalSpent = completedOrders.reduce((sum, o) => sum + o.total, 0);
             const lastOrder = customer.orders.length > 0
                 ? customer.orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
@@ -374,7 +390,39 @@ userRouter.get('/admin/customers/export', async (req: Request, res: Response) =>
 
         const rows: string[] = [];
 
-        for (const customer of customers) {
+        interface ExportOrderItem {
+            id: number;
+            productId: number;
+            title: string;
+            price: number;
+            quantity: number;
+        }
+
+        interface ExportOrder {
+            id: number;
+            orderNumber: string;
+            total: number;
+            subtotal: number;
+            deliveryCharge: number;
+            status: string;
+            paymentMethod: string;
+            paymentStatus: string;
+            customerPhone: string | null;
+            deliveryAddress: string;
+            deliveryArea: string;
+            createdAt: Date;
+            items: ExportOrderItem[];
+        }
+
+        interface CustomerExport {
+            id: number;
+            name: string;
+            email: string;
+            createdAt: Date;
+            orders: ExportOrder[];
+        }
+
+        for (const customer of (customers as unknown as CustomerExport[])) {
             const completedOrders = customer.orders.filter(o => o.status === 'delivered');
             const lifetimeValue = completedOrders.reduce((sum, o) => sum + o.total, 0);
 

@@ -94,7 +94,8 @@ orderRouter.post('/', async (req: Request, res: Response) => {
         }
 
         // Get product details
-        const productIds = cartItems.map(item => item.productId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const productIds = cartItems.map((item: any) => item.productId);
         const products = await prisma.product.findMany({
             where: { id: { in: productIds } },
             select: {
@@ -108,11 +109,34 @@ orderRouter.post('/', async (req: Request, res: Response) => {
             },
         });
 
-        const productMap = new Map(products.map(p => [p.id, p]));
+        // Define interface for product with variants
+        interface ProductWithVariants {
+            id: number;
+            title: string;
+            price: number;
+            images: string[];
+            variants: { id: number; name: string; image: string; price: number | null }[];
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const productMap = new Map<number, ProductWithVariants>(products.map((p: any) => [p.id, p]));
 
         // Calculate totals and prepare order items with variant info
-        let subtotal = 0;
-        const orderItems = cartItems.map(item => {
+
+
+        // Define interface for cart item
+        interface CartItemWithRelations {
+            id: number;
+            productId: number;
+            quantity: number;
+            selectedColor: string | null;
+            selectedSize: string | null;
+            selectedVariant: any;
+            customSelections: any;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const orderItems = (cartItems as any[]).map((item: CartItemWithRelations) => {
             const product = productMap.get(item.productId);
             const selectedVariant = item.selectedVariant as { id?: number; name?: string; image?: string; price?: number } | null;
             const customSelections = item.customSelections as Record<string, string> | null;
@@ -121,7 +145,7 @@ orderRouter.post('/', async (req: Request, res: Response) => {
             const price = selectedVariant?.price || product?.price || 0;
             const image = selectedVariant?.image || product?.images?.[0] || '';
 
-            subtotal += price * item.quantity;
+            console.log(`Processing item ${item.productId}: Variant=${JSON.stringify(selectedVariant)}, Custom=${JSON.stringify(customSelections)}`);
 
             return {
                 productId: item.productId,
@@ -131,11 +155,13 @@ orderRouter.post('/', async (req: Request, res: Response) => {
                 image,
                 selectedColor: item.selectedColor,
                 selectedSize: item.selectedSize,
-                selectedVariant: selectedVariant || undefined,
-                customSelections: customSelections || undefined,
+                selectedVariant: selectedVariant || null,
+                customSelections: customSelections || null,
             };
         });
 
+
+        const subtotal = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         const deliveryCharge = deliveryArea === 'inside' ? 80 : 150;
         const total = subtotal + deliveryCharge;
 

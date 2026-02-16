@@ -133,9 +133,9 @@ exports.Prisma.AdminScalarFieldEnum = {
   email: 'email',
   password: 'password',
   name: 'name',
-  role: 'role',
+  createdAt: 'createdAt',
   permissions: 'permissions',
-  createdAt: 'createdAt'
+  role: 'role'
 };
 
 exports.Prisma.CategoryScalarFieldEnum = {
@@ -174,19 +174,19 @@ exports.Prisma.ProductScalarFieldEnum = {
   totalReviews: 'totalReviews',
   images: 'images',
   features: 'features',
-  tags: 'tags',
-  customVariants: 'customVariants',
   stock: 'stock',
+  isActive: 'isActive',
+  subcategoryId: 'subcategoryId',
+  brandId: 'brandId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
   sku: 'sku',
   colors: 'colors',
   sizes: 'sizes',
   productType: 'productType',
   swatchType: 'swatchType',
-  isActive: 'isActive',
-  subcategoryId: 'subcategoryId',
-  brandId: 'brandId',
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  customVariants: 'customVariants',
+  tags: 'tags'
 };
 
 exports.Prisma.ProductVariantScalarFieldEnum = {
@@ -216,12 +216,12 @@ exports.Prisma.CartItemScalarFieldEnum = {
   userId: 'userId',
   productId: 'productId',
   quantity: 'quantity',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  customSelections: 'customSelections',
   selectedColor: 'selectedColor',
   selectedSize: 'selectedSize',
-  selectedVariant: 'selectedVariant',
-  customSelections: 'customSelections',
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  selectedVariant: 'selectedVariant'
 };
 
 exports.Prisma.WishlistItemScalarFieldEnum = {
@@ -259,10 +259,10 @@ exports.Prisma.OrderItemScalarFieldEnum = {
   price: 'price',
   quantity: 'quantity',
   image: 'image',
+  customSelections: 'customSelections',
   selectedColor: 'selectedColor',
   selectedSize: 'selectedSize',
-  selectedVariant: 'selectedVariant',
-  customSelections: 'customSelections'
+  selectedVariant: 'selectedVariant'
 };
 
 exports.Prisma.AddressScalarFieldEnum = {

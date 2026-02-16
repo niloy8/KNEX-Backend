@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { Router } from "express";
-import { prisma } from "../../lib/prisma.js";
+import { prisma } from "../lib/prisma.js";
 
 const router = Router();
 
@@ -14,7 +14,7 @@ router.get("/", async (_req, res) => {
         });
         console.log("Categories found:", categories.length);
         // Transform to match frontend expected format (subCategories)
-        const transformed = categories.map(cat => ({
+        const transformed = categories.map((cat: any) => ({
             ...cat,
             subCategories: cat.subcategories
         }));

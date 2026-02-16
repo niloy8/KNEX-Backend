@@ -1,6 +1,6 @@
 import "dotenv/config";
 import bcrypt from "bcrypt";
-import { prisma } from "../lib/prisma.js";
+import { prisma } from "./lib/prisma.js";
 
 const ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || "knex.bd@gmail.com";
 const ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD || "KnexAdmin@2025";

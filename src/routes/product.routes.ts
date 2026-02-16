@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { Router } from "express";
-import { Prisma } from "../../generated/prisma/client.js";
-import { prisma } from "../../lib/prisma.js";
+import { Prisma } from "../generated/prisma/index.js";
+import { prisma } from "../lib/prisma.js";
 
 const router = Router();
 
@@ -128,7 +128,7 @@ router.get("/brands", async (req, res) => {
         else if (category) where.subcategory = { category: { slug: category as string } };
 
         const products = await prisma.product.findMany({ where, select: { brand: true }, distinct: ["brandId"] });
-        res.json(products.map((p) => p.brand).filter(Boolean));
+        res.json(products.map((p: { brand: any }) => p.brand).filter(Boolean));
     } catch (error: any) {
         console.error("Error fetching brands:", error);
         res.status(500).json({ error: error.message });
@@ -354,7 +354,7 @@ router.post("/:id/reviews", async (req, res) => {
 
         // Update product rating
         const allReviews = await prisma.review.findMany({ where: { productId } });
-        const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
+        const avgRating = allReviews.reduce((sum: number, r: { rating: number }) => sum + r.rating, 0) / allReviews.length;
 
         await prisma.product.update({
             where: { id: productId },

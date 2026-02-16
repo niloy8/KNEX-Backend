@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getUsers, createUser } from '../controllers/user.controller';
-import { prisma } from '../../lib/prisma.js';
+import { prisma } from '../lib/prisma.js';
 import jwt from 'jsonwebtoken';
 export const userRouter = Router();
 

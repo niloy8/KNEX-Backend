@@ -42,10 +42,10 @@ router.get("/:slug", async (req, res) => {
 // Create category (admin)
 router.post("/", async (req, res) => {
     try {
-        const { name, slug, icon } = req.body;
+        const { name, slug, icon, image } = req.body;
         const categorySlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         const category = await prisma.category.create({
-            data: { name, slug: categorySlug, icon },
+            data: { name, slug: categorySlug, icon, image },
             include: { subcategories: true }
         });
         res.json({ ...category, subCategories: category.subcategories });
@@ -60,12 +60,12 @@ router.post("/", async (req, res) => {
 // Create subcategory (admin)
 router.post("/:categoryId/subcategory", async (req, res) => {
     try {
-        const { name, slug } = req.body;
+        const { name, slug, image } = req.body;
         const categoryId = parseInt(req.params.categoryId);
         const subSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
         const subcategory = await prisma.subCategory.create({
-            data: { name, slug: subSlug, categoryId }
+            data: { name, slug: subSlug, image, categoryId }
         });
         res.json(subcategory);
     } catch (error: any) {
@@ -79,15 +79,29 @@ router.post("/:categoryId/subcategory", async (req, res) => {
 // Update category
 router.put("/:id", async (req, res) => {
     try {
-        const { name, slug, icon } = req.body;
+        const { name, slug, icon, image } = req.body;
         const category = await prisma.category.update({
             where: { id: parseInt(req.params.id) },
-            data: { name, slug, icon },
+            data: { name, slug, icon, image },
             include: { subcategories: true }
         });
         res.json({ ...category, subCategories: category.subcategories });
     } catch (error) {
         res.status(500).json({ error: "Failed to update category" });
+    }
+});
+
+// Update subcategory
+router.put("/:categoryId/subcategory/:subId", async (req, res) => {
+    try {
+        const { name, slug, image } = req.body;
+        const subcategory = await prisma.subCategory.update({
+            where: { id: parseInt(req.params.subId) },
+            data: { name, slug, image }
+        });
+        res.json(subcategory);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to update subcategory" });
     }
 });
 

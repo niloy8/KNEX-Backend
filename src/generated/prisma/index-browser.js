@@ -143,6 +143,7 @@ exports.Prisma.CategoryScalarFieldEnum = {
   name: 'name',
   slug: 'slug',
   icon: 'icon',
+  image: 'image',
   createdAt: 'createdAt'
 };
 
@@ -150,6 +151,7 @@ exports.Prisma.SubCategoryScalarFieldEnum = {
   id: 'id',
   name: 'name',
   slug: 'slug',
+  image: 'image',
   categoryId: 'categoryId',
   createdAt: 'createdAt'
 };

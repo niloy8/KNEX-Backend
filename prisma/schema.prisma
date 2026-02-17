@@ -34,6 +34,7 @@ model Category {
   name          String        @unique
   slug          String        @unique
   icon          String?
+  image         String?
   createdAt     DateTime      @default(now())
   subcategories SubCategory[]
 }
@@ -42,6 +43,7 @@ model SubCategory {
   id         Int       @id @default(autoincrement())
   name       String
   slug       String
+  image      String?
   categoryId Int
   createdAt  DateTime  @default(now())
   products   Product[]

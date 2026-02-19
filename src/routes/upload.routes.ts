@@ -171,4 +171,38 @@ router.delete("/:public_id", async (req, res) => {
     }
 });
 
+// Delete image by URL
+router.post("/delete-by-url", async (req, res) => {
+    try {
+        const { url } = req.body;
+        if (!url) return res.status(400).json({ error: "URL is required" });
+
+        // Extract public_id from URL
+        const parts = url.split('/upload/');
+        if (parts.length < 2) return res.status(400).json({ error: "Invalid Cloudinary URL" });
+
+        let pathAfterUpload = parts[1];
+        if (pathAfterUpload.startsWith('v')) {
+            const firstSlashIndex = pathAfterUpload.indexOf('/');
+            if (firstSlashIndex !== -1) {
+                pathAfterUpload = pathAfterUpload.substring(firstSlashIndex + 1);
+            }
+        }
+
+        const lastDotIndex = pathAfterUpload.lastIndexOf('.');
+        const publicId = lastDotIndex !== -1 ? pathAfterUpload.substring(0, lastDotIndex) : pathAfterUpload;
+
+        console.log(`Deleting Cloudinary asset by URL: ${publicId}`);
+        const result = await cloudinary.uploader.destroy(publicId);
+
+        res.json({
+            success: result.result === 'ok',
+            result: result.result
+        });
+    } catch (error) {
+        console.error("Delete by URL error:", error);
+        res.status(500).json({ error: "Failed to delete image from Cloudinary" });
+    }
+});
+
 export const uploadRouter = router;

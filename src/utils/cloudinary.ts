@@ -16,27 +16,45 @@ export const deleteImageByUrl = async (url: string): Promise<boolean> => {
 
     try {
         // Cloudinary URL format:
-        // https://res.cloudinary.com/[cloud_name]/image/upload/v[version]/[folder]/[public_id].[ext]
+        // https://res.cloudinary.com/[cloud_name]/[resource_type]/upload/[transformations]/v[version]/[public_id].[ext]
 
-        // Split by '/upload/' to get everything after it
         const parts = url.split('/upload/');
         if (parts.length < 2) return false;
 
-        // Get the path after '/upload/' and remove the version (v12345678/) if it exists
-        let pathAfterUpload = parts[1];
-        if (pathAfterUpload.startsWith('v')) {
-            const firstSlashIndex = pathAfterUpload.indexOf('/');
-            if (firstSlashIndex !== -1) {
-                pathAfterUpload = pathAfterUpload.substring(firstSlashIndex + 1);
+        let remaining = parts[1];
+        const pathSegments = remaining.split('/');
+
+        // Cloudinary path usually looks like: [transformations/][vVersion/][folders/]publicId.ext
+
+        let startIndex = 0;
+
+        // Find the version segment (v followed by digits)
+        const versionIndex = pathSegments.findIndex(seg => /^v\d+$/.test(seg));
+        if (versionIndex !== -1) {
+            // Everything AFTER the version is the public_id
+            startIndex = versionIndex + 1;
+        } else {
+            // No version found. Is the first segment a transformation?
+            // Heuristic: transformations often contain commas, or are very short key_value pairs
+            if (pathSegments.length > 1 && (pathSegments[0].includes(',') || /^[a-z]_[^/]+$/.test(pathSegments[0]))) {
+                startIndex = 1;
             }
         }
 
-        // Remove the file extension (e.g., .webp, .jpg)
-        const lastDotIndex = pathAfterUpload.lastIndexOf('.');
-        const publicId = lastDotIndex !== -1 ? pathAfterUpload.substring(0, lastDotIndex) : pathAfterUpload;
+        const publicIdSegments = pathSegments.slice(startIndex);
+        let pathWithExt = publicIdSegments.join('/');
+
+        // Remove the file extension
+        const lastDotIndex = pathWithExt.lastIndexOf('.');
+        const publicId = lastDotIndex !== -1 ? pathWithExt.substring(0, lastDotIndex) : pathWithExt;
 
         console.log(`Deleting Cloudinary asset: ${publicId}`);
         const result = await cloudinary.uploader.destroy(publicId);
+
+        if (result.result !== 'ok') {
+            console.warn(`Cloudinary delete result for ${publicId}: ${result.result}`);
+        }
+
         return result.result === 'ok';
     } catch (error) {
         console.error("Error deleting image from Cloudinary:", error);

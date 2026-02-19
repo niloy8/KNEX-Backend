@@ -5,19 +5,26 @@ import { deleteImageByUrl } from "../utils/cloudinary.js";
 
 const router = Router();
 
-// Get all categories with subcategories
+// Get all categories with subcategories and sub-subcategories
 router.get("/", async (_req, res) => {
     try {
         console.log("Fetching categories...");
         const categories = await prisma.category.findMany({
-            include: { subcategories: true },
+            include: {
+                subcategories: {
+                    include: { subsubcategories: true }
+                }
+            },
             orderBy: { id: "asc" }
         });
         console.log("Categories found:", categories.length);
-        // Transform to match frontend expected format (subCategories)
+        // Transform to match frontend expected format (subCategories, subSubCategories)
         const transformed = categories.map((cat: any) => ({
             ...cat,
-            subCategories: cat.subcategories
+            subCategories: cat.subcategories.map((sub: any) => ({
+                ...sub,
+                subSubCategories: sub.subsubcategories
+            }))
         }));
         res.json(transformed);
     } catch (error) {
@@ -26,15 +33,25 @@ router.get("/", async (_req, res) => {
     }
 });
 
-// Get single category with subcategories
+// Get single category with subcategories and sub-subcategories
 router.get("/:slug", async (req, res) => {
     try {
         const category = await prisma.category.findUnique({
             where: { slug: req.params.slug },
-            include: { subcategories: true }
+            include: {
+                subcategories: {
+                    include: { subsubcategories: true }
+                }
+            }
         });
         if (!category) return res.status(404).json({ error: "Category not found" });
-        res.json({ ...category, subCategories: category.subcategories });
+        res.json({
+            ...category,
+            subCategories: category.subcategories.map((sub: any) => ({
+                ...sub,
+                subSubCategories: sub.subsubcategories
+            }))
+        });
     } catch (error) {
         res.status(500).json({ error: "Failed to fetch category" });
     }
@@ -66,9 +83,10 @@ router.post("/:categoryId/subcategory", async (req, res) => {
         const subSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
         const subcategory = await prisma.subCategory.create({
-            data: { name, slug: subSlug, image, categoryId }
+            data: { name, slug: subSlug, image, categoryId },
+            include: { subsubcategories: true }
         });
-        res.json(subcategory);
+        res.json({ ...subcategory, subSubCategories: subcategory.subsubcategories });
     } catch (error: any) {
         if (error.code === 'P2002') {
             return res.status(400).json({ error: "Subcategory with this slug already exists in this category" });
@@ -77,17 +95,50 @@ router.post("/:categoryId/subcategory", async (req, res) => {
     }
 });
 
+// Create sub-subcategory (admin)
+router.post("/:categoryId/subcategory/:subId/subsubcategory", async (req, res) => {
+    try {
+        const { name, slug, image } = req.body;
+        const subId = parseInt(req.params.subId);
+        const subSubSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+        const subsubcategory = await prisma.subSubCategory.create({
+            data: { name, slug: subSubSlug, image, subCategoryId: subId }
+        });
+        res.json(subsubcategory);
+    } catch (error: any) {
+        if (error.code === 'P2002') {
+            return res.status(400).json({ error: "Sub-subcategory with this slug already exists in this subcategory" });
+        }
+        console.error("Error creating sub-subcategory:", error);
+        res.status(500).json({ error: "Failed to create sub-subcategory" });
+    }
+});
+
 // Update category
 router.put("/:id", async (req, res) => {
     try {
+        const id = parseInt(req.params.id);
         const { name, slug, icon, image } = req.body;
+
+        // Snapshot old images
+        const oldCategory = await prisma.category.findUnique({ where: { id } });
+
         const category = await prisma.category.update({
-            where: { id: parseInt(req.params.id) },
+            where: { id },
             data: { name, slug, icon, image },
             include: { subcategories: true }
         });
+
+        // Cleanup
+        if (oldCategory) {
+            if (oldCategory.icon && oldCategory.icon !== icon) await deleteImageByUrl(oldCategory.icon);
+            if (oldCategory.image && oldCategory.image !== image) await deleteImageByUrl(oldCategory.image);
+        }
+
         res.json({ ...category, subCategories: category.subcategories });
     } catch (error) {
+        console.error("Error updating category:", error);
         res.status(500).json({ error: "Failed to update category" });
     }
 });
@@ -95,14 +146,53 @@ router.put("/:id", async (req, res) => {
 // Update subcategory
 router.put("/:categoryId/subcategory/:subId", async (req, res) => {
     try {
+        const subId = parseInt(req.params.subId);
         const { name, slug, image } = req.body;
+
+        // Snapshot old image
+        const oldSub = await prisma.subCategory.findUnique({ where: { id: subId } });
+
         const subcategory = await prisma.subCategory.update({
-            where: { id: parseInt(req.params.subId) },
+            where: { id: subId },
+            data: { name, slug, image },
+            include: { subsubcategories: true }
+        });
+
+        // Cleanup
+        if (oldSub && oldSub.image && oldSub.image !== image) {
+            await deleteImageByUrl(oldSub.image);
+        }
+
+        res.json({ ...subcategory, subSubCategories: subcategory.subsubcategories });
+    } catch (error) {
+        console.error("Error updating subcategory:", error);
+        res.status(500).json({ error: "Failed to update subcategory" });
+    }
+});
+
+// Update sub-subcategory
+router.put("/:categoryId/subcategory/:subId/subsubcategory/:subSubId", async (req, res) => {
+    try {
+        const subSubId = parseInt(req.params.subSubId);
+        const { name, slug, image } = req.body;
+
+        // Snapshot old image
+        const oldSubSub = await prisma.subSubCategory.findUnique({ where: { id: subSubId } });
+
+        const subsubcategory = await prisma.subSubCategory.update({
+            where: { id: subSubId },
             data: { name, slug, image }
         });
-        res.json(subcategory);
+
+        // Cleanup
+        if (oldSubSub && oldSubSub.image && oldSubSub.image !== image) {
+            await deleteImageByUrl(oldSubSub.image);
+        }
+
+        res.json(subsubcategory);
     } catch (error) {
-        res.status(500).json({ error: "Failed to update subcategory" });
+        console.error("Error updating sub-subcategory:", error);
+        res.status(500).json({ error: "Failed to update sub-subcategory" });
     }
 });
 
@@ -129,8 +219,9 @@ router.delete("/:id", async (req, res) => {
 // Delete subcategory
 router.delete("/:categoryId/subcategory/:subId", async (req, res) => {
     try {
-        const subcategory = await prisma.subCategory.findUnique({ where: { id: parseInt(req.params.subId) } });
-        await prisma.subCategory.delete({ where: { id: parseInt(req.params.subId) } });
+        const subId = parseInt(req.params.subId);
+        const subcategory = await prisma.subCategory.findUnique({ where: { id: subId } });
+        await prisma.subCategory.delete({ where: { id: subId } });
 
         if (subcategory && subcategory.image) {
             await deleteImageByUrl(subcategory.image);
@@ -139,9 +230,29 @@ router.delete("/:categoryId/subcategory/:subId", async (req, res) => {
         res.json({ success: true });
     } catch (error: any) {
         if (error.code === 'P2003') {
-            return res.status(400).json({ error: "Cannot delete subcategory with existing products" });
+            return res.status(400).json({ error: "Cannot delete subcategory with existing sub-subcategories or products" });
         }
         res.status(500).json({ error: "Failed to delete subcategory" });
+    }
+});
+
+// Delete sub-subcategory
+router.delete("/:categoryId/subcategory/:subId/subsubcategory/:subSubId", async (req, res) => {
+    try {
+        const subSubId = parseInt(req.params.subSubId);
+        const subsubcategory = await prisma.subSubCategory.findUnique({ where: { id: subSubId } });
+        await prisma.subSubCategory.delete({ where: { id: subSubId } });
+
+        if (subsubcategory && subsubcategory.image) {
+            await deleteImageByUrl(subsubcategory.image);
+        }
+
+        res.json({ success: true });
+    } catch (error: any) {
+        if (error.code === 'P2003') {
+            return res.status(400).json({ error: "Cannot delete sub-subcategory with existing products" });
+        }
+        res.status(500).json({ error: "Failed to delete sub-subcategory" });
     }
 });
 

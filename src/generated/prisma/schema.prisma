@@ -40,16 +40,30 @@ model Category {
 }
 
 model SubCategory {
-  id         Int       @id @default(autoincrement())
-  name       String
-  slug       String
-  image      String?
-  categoryId Int
-  createdAt  DateTime  @default(now())
-  products   Product[]
-  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  id               Int              @id @default(autoincrement())
+  name             String
+  slug             String
+  image            String?
+  categoryId       Int
+  createdAt        DateTime         @default(now())
+  products         Product[]
+  category         Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  subsubcategories SubSubCategory[]
 
   @@unique([categoryId, slug])
+}
+
+model SubSubCategory {
+  id            Int         @id @default(autoincrement())
+  name          String
+  slug          String
+  image         String?
+  subCategoryId Int
+  createdAt     DateTime    @default(now())
+  products      Product[]
+  subcategory   SubCategory @relation(fields: [subCategoryId], references: [id], onDelete: Cascade)
+
+  @@unique([subCategoryId, slug])
 }
 
 model Brand {
@@ -61,35 +75,37 @@ model Brand {
 }
 
 model Product {
-  id             Int              @id @default(autoincrement())
-  title          String
-  slug           String           @unique
-  description    String?
-  price          Float
-  originalPrice  Float?
-  discount       Int?
-  rating         Float            @default(0)
-  totalRatings   Int              @default(0)
-  totalReviews   Int              @default(0)
-  images         String[]
-  features       String[]
-  stock          Int              @default(0)
-  isActive       Boolean          @default(true)
-  subcategoryId  Int
-  brandId        Int?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  sku            String?
-  colors         String[]
-  sizes          String[]
-  productType    String           @default("simple")
-  swatchType     String?
-  customVariants Json?
-  tags           String[]
-  brand          Brand?           @relation(fields: [brandId], references: [id])
-  subcategory    SubCategory      @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
-  variants       ProductVariant[]
-  reviews        Review[]
+  id               Int              @id @default(autoincrement())
+  title            String
+  slug             String           @unique
+  description      String?
+  price            Float
+  originalPrice    Float?
+  discount         Int?
+  rating           Float            @default(0)
+  totalRatings     Int              @default(0)
+  totalReviews     Int              @default(0)
+  images           String[]
+  features         String[]
+  stock            Int              @default(0)
+  isActive         Boolean          @default(true)
+  subcategoryId    Int
+  subSubCategoryId Int?
+  brandId          Int?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  sku              String?
+  colors           String[]
+  sizes            String[]
+  productType      String           @default("simple")
+  swatchType       String?
+  customVariants   Json?
+  tags             String[]
+  brand            Brand?           @relation(fields: [brandId], references: [id])
+  subcategory      SubCategory      @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  subsubcategory   SubSubCategory?  @relation(fields: [subSubCategoryId], references: [id])
+  variants         ProductVariant[]
+  reviews          Review[]
 }
 
 model ProductVariant {

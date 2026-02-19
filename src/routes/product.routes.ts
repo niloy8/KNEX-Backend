@@ -48,6 +48,12 @@ interface ProductSource {
         categoryId: number;
     } | null;
     subcategoryId: number;
+    subsubcategory: {
+        id: number;
+        name: string;
+        slug: string;
+    } | null;
+    subSubCategoryId: number | null;
     brand: any;
     brandId: number | null;
     reviews: any[];
@@ -104,6 +110,8 @@ const transformProduct = (p: ProductSource) => ({
     categoryId: p.subcategory?.categoryId || null,
     subCategory: p.subcategory ? { id: p.subcategory.id, name: p.subcategory.name, slug: p.subcategory.slug } : null,
     subCategoryId: p.subcategoryId,
+    subSubCategory: p.subsubcategory ? { id: p.subsubcategory.id, name: p.subsubcategory.name, slug: p.subsubcategory.slug } : null,
+    subSubCategoryId: p.subSubCategoryId,
     brand: p.brand,
     brandId: p.brandId,
     reviews: p.reviews || [],
@@ -114,18 +122,24 @@ const transformProduct = (p: ProductSource) => ({
 // Get all products with filters
 router.get("/", async (req, res) => {
     try {
-        const { category, subcategory, brand, minPrice, maxPrice, sort, search, inStock, page = "1", limit = "20" } = req.query;
+        const { category, subcategory, subsubcategory, brand, minPrice, maxPrice, sort, search, inStock, page = "1", limit = "20" } = req.query;
         const where: Prisma.ProductWhereInput = {};
 
         if (search) {
             where.OR = [
                 { title: { contains: search as string, mode: "insensitive" } },
                 { description: { contains: search as string, mode: "insensitive" } },
+                { tags: { has: search as string } }
             ];
         }
 
-        if (subcategory) where.subcategory = { slug: subcategory as string };
-        else if (category) where.subcategory = { category: { slug: category as string } };
+        if (subsubcategory) {
+            where.subsubcategory = { slug: subsubcategory as string };
+        } else if (subcategory) {
+            where.subcategory = { slug: subcategory as string };
+        } else if (category) {
+            where.subcategory = { category: { slug: category as string } };
+        }
 
         if (brand) where.brand = { slug: brand as string };
 
@@ -147,7 +161,7 @@ router.get("/", async (req, res) => {
         const [products, total] = await Promise.all([
             prisma.product.findMany({
                 where,
-                include: { subcategory: { include: { category: true } }, brand: true, variants: true },
+                include: { subcategory: { include: { category: true } }, subsubcategory: true, brand: true, variants: true },
                 orderBy,
                 skip,
                 take: parseInt(limit as string),
@@ -170,11 +184,16 @@ router.get("/", async (req, res) => {
 // Get brands for a category/subcategory
 router.get("/brands", async (req, res) => {
     try {
-        const { category, subcategory } = req.query;
+        const { category, subcategory, subsubcategory } = req.query;
         const where: Prisma.ProductWhereInput = { isActive: true };
 
-        if (subcategory) where.subcategory = { slug: subcategory as string };
-        else if (category) where.subcategory = { category: { slug: category as string } };
+        if (subsubcategory) {
+            where.subsubcategory = { slug: subsubcategory as string };
+        } else if (subcategory) {
+            where.subcategory = { slug: subcategory as string };
+        } else if (category) {
+            where.subcategory = { category: { slug: category as string } };
+        }
 
         const products = await prisma.product.findMany({ where, select: { brand: true }, distinct: ["brandId"] });
         res.json(products.map((p: { brand: any }) => p.brand).filter(Boolean));
@@ -199,7 +218,7 @@ router.get("/:idOrSlug", async (req, res) => {
         const isId = /^\d+$/.test(idOrSlug);
         const product = await prisma.product.findUnique({
             where: isId ? { id: parseInt(idOrSlug) } : { slug: idOrSlug },
-            include: { subcategory: { include: { category: true } }, brand: true, reviews: { orderBy: { createdAt: "desc" } }, variants: true },
+            include: { subcategory: { include: { category: true } }, subsubcategory: true, brand: true, reviews: { orderBy: { createdAt: "desc" } }, variants: true },
         });
 
         if (!product) return res.status(404).json({ error: "Product not found" });
@@ -213,7 +232,13 @@ router.get("/:idOrSlug", async (req, res) => {
 // Create product
 router.post("/", async (req, res) => {
     try {
-        const { title, description, price, originalPrice, discount, image, gallery, images, features, tags, colors, sizes, stock, stockQuantity, subcategoryId, subCategoryId, brandId, rating, productType, swatchType, variants, imageSwatch } = req.body;
+        const {
+            title, description, price, originalPrice, discount,
+            image, gallery, images, features, tags, colors, sizes,
+            stock, stockQuantity, subcategoryId, subCategoryId,
+            subSubCategoryId, brandId, rating, productType,
+            swatchType, variants, imageSwatch
+        } = req.body;
 
         console.log("Creating product:", { title, productType, swatchType, imageSwatch, variants, tags });
 
@@ -276,12 +301,13 @@ router.post("/", async (req, res) => {
                 stock: Number(stock || stockQuantity || 0),
                 sku,
                 subcategoryId: Number(subCatId),
+                subSubCategoryId: subSubCategoryId ? Number(subSubCategoryId) : null,
                 brandId: brandId ? Number(brandId) : null,
                 variants: variantsData.length > 0 ? {
                     create: variantsData,
                 } : undefined,
             },
-            include: { subcategory: { include: { category: true } }, brand: true, variants: true },
+            include: { subcategory: { include: { category: true } }, subsubcategory: true, brand: true, variants: true },
         });
 
         res.json(transformProduct(product as unknown as ProductSource));
@@ -295,7 +321,13 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
     try {
         const id = parseInt(req.params.id);
-        const { title, description, price, originalPrice, discount, image, gallery, images, features, tags, colors, sizes, stock, stockQuantity, sku, subcategoryId, subCategoryId, brandId, isActive, inStock, rating, productType, swatchType, variants, imageSwatch } = req.body;
+        const {
+            title, description, price, originalPrice, discount,
+            image, gallery, images, features, tags, colors, sizes,
+            stock, stockQuantity, sku, subcategoryId, subCategoryId,
+            subSubCategoryId, brandId, isActive, inStock, rating,
+            productType, swatchType, variants, imageSwatch
+        } = req.body;
 
         const data: any = {};
         if (title !== undefined) data.title = title;
@@ -332,23 +364,23 @@ router.put("/:id", async (req, res) => {
 
         const subCatId = subcategoryId || subCategoryId;
         if (subCatId !== undefined) data.subcategoryId = Number(subCatId);
+        if (subSubCategoryId !== undefined) data.subSubCategoryId = subSubCategoryId ? Number(subSubCategoryId) : null;
         if (brandId !== undefined) data.brandId = brandId ? Number(brandId) : null;
         if (isActive !== undefined) data.isActive = isActive;
         if (inStock !== undefined) data.isActive = inStock;
 
-        // Handle variants update - delete existing and recreate
-        // Fetch existing product and variants to collect all old image URLs
-        // CRITICAL: We must do this BEFORE deleting variants or updating the product
+        // Snapshot old images
         const oldProduct = await prisma.product.findUnique({
             where: { id },
-            include: { variants: true }
+            include: { variants: true, subsubcategory: true }
         });
 
         // Track all UNIQUE old URLs
         const oldUrls = new Set<string>();
         if (oldProduct) {
-            oldProduct.images.forEach((url: string) => oldUrls.add(url));
-            oldProduct.variants.forEach((v: any) => {
+            (oldProduct.images || []).forEach((url: string) => oldUrls.add(url));
+            if (oldProduct.subsubcategory?.image) oldUrls.add(oldProduct.subsubcategory.image);
+            (oldProduct.variants || []).forEach((v: any) => {
                 if (v.image) oldUrls.add(v.image);
                 if (v.images && Array.isArray(v.images)) {
                     v.images.forEach((url: string) => oldUrls.add(url));
@@ -373,32 +405,43 @@ router.put("/:id", async (req, res) => {
             await prisma.productVariant.deleteMany({ where: { productId: id } });
         }
 
+        const updateData: any = {
+            ...data,
+            variants: variantsData.length > 0 ? {
+                create: variantsData,
+            } : undefined,
+        };
+
         const product = await prisma.product.update({
-            where: { id },
-            data: {
-                ...data,
-                variants: variantsData.length > 0 ? {
-                    create: variantsData,
-                } : undefined,
-            },
-            include: { subcategory: { include: { category: true } }, brand: true, variants: true },
+            where: { id: parseInt(req.params.id) },
+            data: updateData,
+            include: { subcategory: { include: { category: true } }, subsubcategory: true, brand: true, variants: true },
         });
 
-        // Track all UNIQUE new URLs
+        // Collect all new URLs
         const newUrls = new Set<string>();
-        product.images.forEach((url: string) => newUrls.add(url));
-        product.variants.forEach((v: any) => {
-            if (v.image) newUrls.add(v.image);
-            if (v.images && Array.isArray(v.images)) {
-                v.images.forEach((url: string) => newUrls.add(url));
+        (product.images || []).forEach((url: string) => { if (url) newUrls.add(url.trim()); });
+        (product.variants || []).forEach((v: any) => {
+            if (v.image) newUrls.add(v.image.trim());
+            if (Array.isArray(v.images)) {
+                v.images.forEach((url: string) => { if (url) newUrls.add(url.trim()); });
             }
         });
 
         // Cleanup: If an old URL is not in the new set, delete it from Cloudinary
+        console.log(`[Sync] Product ${req.params.id} update cleanup started. Old URLs: ${oldUrls.size}, New URLs: ${newUrls.size}`);
+
+        let deletedCount = 0;
         for (const oldUrl of oldUrls) {
             if (!newUrls.has(oldUrl)) {
-                await deleteImageByUrl(oldUrl);
+                console.log(`[Sync] Deleting orphaned image: ${oldUrl}`);
+                const success = await deleteImageByUrl(oldUrl);
+                if (success) deletedCount++;
             }
+        }
+
+        if (deletedCount > 0) {
+            console.log(`[Sync] Successfully deleted ${deletedCount} images from Cloudinary.`);
         }
 
         res.json(transformProduct(product as unknown as ProductSource));

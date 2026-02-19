@@ -5,6 +5,7 @@ import sharp from "sharp";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import cloudinary from "../utils/cloudinary.js";
 
 const router = Router();
 
@@ -12,13 +13,7 @@ const router = Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Create uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, "../../uploads");
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Configure multer for memory storage (we'll process before saving)
+// Configure multer for memory storage
 const storage = multer.memoryStorage();
 const upload = multer({
     storage,
@@ -33,6 +28,25 @@ const upload = multer({
     },
 });
 
+// Helper to upload buffer to Cloudinary
+async function uploadToCloudinary(buffer: Buffer, originalName: string, folder: string = "knex_uploads"): Promise<any> {
+    return new Promise((resolve, reject) => {
+        const publicId = path.parse(originalName).name;
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                folder,
+                public_id: `${publicId}-${Date.now()}`,
+                resource_type: "auto",
+            },
+            (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+            }
+        );
+        uploadStream.end(buffer);
+    });
+}
+
 // Compress image to target size (30-60KB) while maintaining quality
 async function compressImage(buffer: Buffer, filename: string): Promise<{ buffer: Buffer; filename: string }> {
     const ext = path.extname(filename).toLowerCase();
@@ -46,16 +60,14 @@ async function compressImage(buffer: Buffer, filename: string): Promise<{ buffer
         .webp({ quality })
         .toBuffer();
 
-    // Target size: 30-60KB (30720 - 61440 bytes)
+    // Target size: 30-60KB
     const targetMin = 30 * 1024;
     const targetMax = 60 * 1024;
 
-    // If image is already small enough, return it
     if (compressed.length <= targetMax) {
         return { buffer: compressed, filename: newFilename };
     }
 
-    // Binary search for optimal quality
     let minQuality = 10;
     let maxQuality = 80;
     let attempts = 0;
@@ -63,14 +75,13 @@ async function compressImage(buffer: Buffer, filename: string): Promise<{ buffer
 
     while (attempts < maxAttempts) {
         quality = Math.floor((minQuality + maxQuality) / 2);
-
         compressed = await sharp(buffer)
             .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
             .webp({ quality })
             .toBuffer();
 
         if (compressed.length >= targetMin && compressed.length <= targetMax) {
-            break; // Found good quality
+            break;
         } else if (compressed.length > targetMax) {
             maxQuality = quality - 1;
         } else {
@@ -79,7 +90,6 @@ async function compressImage(buffer: Buffer, filename: string): Promise<{ buffer
         attempts++;
     }
 
-    // If still too large, try with smaller dimensions
     if (compressed.length > targetMax) {
         const dimensions = [800, 600, 400];
         for (const dim of dimensions) {
@@ -87,7 +97,6 @@ async function compressImage(buffer: Buffer, filename: string): Promise<{ buffer
                 .resize(dim, dim, { fit: "inside", withoutEnlargement: true })
                 .webp({ quality: 60 })
                 .toBuffer();
-
             if (compressed.length <= targetMax) break;
         }
     }
@@ -103,25 +112,17 @@ router.post("/single", upload.single("image"), async (req, res) => {
         }
 
         const { buffer, filename } = await compressImage(req.file.buffer, req.file.originalname);
-        const filePath = path.join(uploadsDir, filename);
-
-        await fs.promises.writeFile(filePath, buffer);
-
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.headers.host;
-        const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
-        const imageUrl = `${baseUrl}/uploads/${filename}`;
+        const result = await uploadToCloudinary(buffer, filename);
 
         res.json({
             success: true,
-            url: imageUrl,
-            filename,
-            size: buffer.length,
+            url: result.secure_url,
+            public_id: result.public_id,
             sizeKB: (buffer.length / 1024).toFixed(2) + " KB"
         });
     } catch (error) {
         console.error("Upload error:", error);
-        res.status(500).json({ error: "Failed to upload image" });
+        res.status(500).json({ error: "Failed to upload image to Cloudinary" });
     }
 });
 
@@ -133,24 +134,17 @@ router.post("/multiple", upload.array("images", 10), async (req, res) => {
             return res.status(400).json({ error: "No images provided" });
         }
 
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.headers.host;
-        const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
-        const results = [];
-
-        for (const file of files) {
+        const uploadPromises = files.map(async (file) => {
             const { buffer, filename } = await compressImage(file.buffer, file.originalname);
-            const filePath = path.join(uploadsDir, filename);
-
-            await fs.promises.writeFile(filePath, buffer);
-
-            results.push({
-                url: `${baseUrl}/uploads/${filename}`,
-                filename,
-                size: buffer.length,
+            const result = await uploadToCloudinary(buffer, filename);
+            return {
+                url: result.secure_url,
+                public_id: result.public_id,
                 sizeKB: (buffer.length / 1024).toFixed(2) + " KB"
-            });
-        }
+            };
+        });
+
+        const results = await Promise.all(uploadPromises);
 
         res.json({
             success: true,
@@ -158,24 +152,22 @@ router.post("/multiple", upload.array("images", 10), async (req, res) => {
         });
     } catch (error) {
         console.error("Upload error:", error);
-        res.status(500).json({ error: "Failed to upload images" });
+        res.status(500).json({ error: "Failed to upload images to Cloudinary" });
     }
 });
 
-// Delete image
-router.delete("/:filename", async (req, res) => {
+// Delete image from Cloudinary
+router.delete("/:public_id", async (req, res) => {
     try {
-        const filePath = path.join(uploadsDir, req.params.filename);
-
-        if (fs.existsSync(filePath)) {
-            await fs.promises.unlink(filePath);
+        const result = await cloudinary.uploader.destroy(req.params.public_id);
+        if (result.result === "ok") {
             res.json({ success: true });
         } else {
-            res.status(404).json({ error: "Image not found" });
+            res.status(404).json({ error: "Image not found on Cloudinary", details: result });
         }
     } catch (error) {
         console.error("Delete error:", error);
-        res.status(500).json({ error: "Failed to delete image" });
+        res.status(500).json({ error: "Failed to delete image from Cloudinary" });
     }
 });
 

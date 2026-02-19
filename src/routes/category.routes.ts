@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
+import { deleteImageByUrl } from "../utils/cloudinary.js";
 
 const router = Router();
 
@@ -108,7 +109,14 @@ router.put("/:categoryId/subcategory/:subId", async (req, res) => {
 // Delete category
 router.delete("/:id", async (req, res) => {
     try {
+        const category = await prisma.category.findUnique({ where: { id: parseInt(req.params.id) } });
         await prisma.category.delete({ where: { id: parseInt(req.params.id) } });
+
+        if (category) {
+            if (category.icon) await deleteImageByUrl(category.icon);
+            if (category.image) await deleteImageByUrl(category.image);
+        }
+
         res.json({ success: true });
     } catch (error: any) {
         if (error.code === 'P2003') {
@@ -121,7 +129,13 @@ router.delete("/:id", async (req, res) => {
 // Delete subcategory
 router.delete("/:categoryId/subcategory/:subId", async (req, res) => {
     try {
+        const subcategory = await prisma.subCategory.findUnique({ where: { id: parseInt(req.params.subId) } });
         await prisma.subCategory.delete({ where: { id: parseInt(req.params.subId) } });
+
+        if (subcategory && subcategory.image) {
+            await deleteImageByUrl(subcategory.image);
+        }
+
         res.json({ success: true });
     } catch (error: any) {
         if (error.code === 'P2003') {

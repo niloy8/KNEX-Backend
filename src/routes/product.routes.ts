@@ -2,6 +2,7 @@ import "dotenv/config";
 import { Router } from "express";
 import { Prisma } from "../generated/prisma/index.js";
 import { prisma } from "../lib/prisma.js";
+import { deleteImageByUrl } from "../utils/cloudinary.js";
 
 const router = Router();
 
@@ -336,6 +337,26 @@ router.put("/:id", async (req, res) => {
         if (inStock !== undefined) data.isActive = inStock;
 
         // Handle variants update - delete existing and recreate
+        // Fetch existing product and variants to collect all old image URLs
+        // CRITICAL: We must do this BEFORE deleting variants or updating the product
+        const oldProduct = await prisma.product.findUnique({
+            where: { id },
+            include: { variants: true }
+        });
+
+        // Track all UNIQUE old URLs
+        const oldUrls = new Set<string>();
+        if (oldProduct) {
+            oldProduct.images.forEach((url: string) => oldUrls.add(url));
+            oldProduct.variants.forEach((v: any) => {
+                if (v.image) oldUrls.add(v.image);
+                if (v.images && Array.isArray(v.images)) {
+                    v.images.forEach((url: string) => oldUrls.add(url));
+                }
+            });
+        }
+
+        // Handle variants update - delete existing and recreate
         let variantsData: { name: string; image: string; images: string[]; stock: number }[] = [];
         if (imageSwatch && Array.isArray(imageSwatch) && imageSwatch.length > 0) {
             variantsData = imageSwatch.map((s: ImageSwatch) => ({
@@ -363,6 +384,23 @@ router.put("/:id", async (req, res) => {
             include: { subcategory: { include: { category: true } }, brand: true, variants: true },
         });
 
+        // Track all UNIQUE new URLs
+        const newUrls = new Set<string>();
+        product.images.forEach((url: string) => newUrls.add(url));
+        product.variants.forEach((v: any) => {
+            if (v.image) newUrls.add(v.image);
+            if (v.images && Array.isArray(v.images)) {
+                v.images.forEach((url: string) => newUrls.add(url));
+            }
+        });
+
+        // Cleanup: If an old URL is not in the new set, delete it from Cloudinary
+        for (const oldUrl of oldUrls) {
+            if (!newUrls.has(oldUrl)) {
+                await deleteImageByUrl(oldUrl);
+            }
+        }
+
         res.json(transformProduct(product as unknown as ProductSource));
     } catch (error: any) {
         console.error("Error updating product:", error);
@@ -373,7 +411,29 @@ router.put("/:id", async (req, res) => {
 // Delete product
 router.delete("/:id", async (req, res) => {
     try {
+        const product = await prisma.product.findUnique({
+            where: { id: parseInt(req.params.id) },
+            include: { variants: true }
+        });
+
         await prisma.product.delete({ where: { id: parseInt(req.params.id) } });
+
+        if (product) {
+            // Delete product images
+            for (const imgUrl of product.images) {
+                await deleteImageByUrl(imgUrl);
+            }
+            // Delete variant images
+            for (const variant of product.variants) {
+                if (variant.image) await deleteImageByUrl(variant.image);
+                if (variant.images && Array.isArray(variant.images)) {
+                    for (const imgUrl of variant.images) {
+                        await deleteImageByUrl(imgUrl);
+                    }
+                }
+            }
+        }
+
         res.json({ success: true });
     } catch (error: any) {
         console.error("Error deleting product:", error);

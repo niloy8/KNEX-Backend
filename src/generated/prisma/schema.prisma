@@ -147,13 +147,15 @@ model CartItem {
 }
 
 model WishlistItem {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  productId Int
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, productId])
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  productId        Int
+  createdAt        DateTime @default(now())
+  customSelections Json?
+  selectedColor    String?
+  selectedSize     String?
+  selectedVariant  Json?
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Order {

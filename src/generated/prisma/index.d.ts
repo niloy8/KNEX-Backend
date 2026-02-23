@@ -14020,6 +14020,8 @@ export namespace Prisma {
     userId: number | null
     productId: number | null
     createdAt: Date | null
+    selectedColor: string | null
+    selectedSize: string | null
   }
 
   export type WishlistItemMaxAggregateOutputType = {
@@ -14027,6 +14029,8 @@ export namespace Prisma {
     userId: number | null
     productId: number | null
     createdAt: Date | null
+    selectedColor: string | null
+    selectedSize: string | null
   }
 
   export type WishlistItemCountAggregateOutputType = {
@@ -14034,6 +14038,10 @@ export namespace Prisma {
     userId: number
     productId: number
     createdAt: number
+    customSelections: number
+    selectedColor: number
+    selectedSize: number
+    selectedVariant: number
     _all: number
   }
 
@@ -14055,6 +14063,8 @@ export namespace Prisma {
     userId?: true
     productId?: true
     createdAt?: true
+    selectedColor?: true
+    selectedSize?: true
   }
 
   export type WishlistItemMaxAggregateInputType = {
@@ -14062,6 +14072,8 @@ export namespace Prisma {
     userId?: true
     productId?: true
     createdAt?: true
+    selectedColor?: true
+    selectedSize?: true
   }
 
   export type WishlistItemCountAggregateInputType = {
@@ -14069,6 +14081,10 @@ export namespace Prisma {
     userId?: true
     productId?: true
     createdAt?: true
+    customSelections?: true
+    selectedColor?: true
+    selectedSize?: true
+    selectedVariant?: true
     _all?: true
   }
 
@@ -14163,6 +14179,10 @@ export namespace Prisma {
     userId: number
     productId: number
     createdAt: Date
+    customSelections: JsonValue | null
+    selectedColor: string | null
+    selectedSize: string | null
+    selectedVariant: JsonValue | null
     _count: WishlistItemCountAggregateOutputType | null
     _avg: WishlistItemAvgAggregateOutputType | null
     _sum: WishlistItemSumAggregateOutputType | null
@@ -14189,6 +14209,10 @@ export namespace Prisma {
     userId?: boolean
     productId?: boolean
     createdAt?: boolean
+    customSelections?: boolean
+    selectedColor?: boolean
+    selectedSize?: boolean
+    selectedVariant?: boolean
     user?: boolean | UserDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["wishlistItem"]>
 
@@ -14197,6 +14221,10 @@ export namespace Prisma {
     userId?: boolean
     productId?: boolean
     createdAt?: boolean
+    customSelections?: boolean
+    selectedColor?: boolean
+    selectedSize?: boolean
+    selectedVariant?: boolean
     user?: boolean | UserDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["wishlistItem"]>
 
@@ -14205,6 +14233,10 @@ export namespace Prisma {
     userId?: boolean
     productId?: boolean
     createdAt?: boolean
+    customSelections?: boolean
+    selectedColor?: boolean
+    selectedSize?: boolean
+    selectedVariant?: boolean
     user?: boolean | UserDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["wishlistItem"]>
 
@@ -14213,9 +14245,13 @@ export namespace Prisma {
     userId?: boolean
     productId?: boolean
     createdAt?: boolean
+    customSelections?: boolean
+    selectedColor?: boolean
+    selectedSize?: boolean
+    selectedVariant?: boolean
   }
 
-  export type WishlistItemOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "userId" | "productId" | "createdAt", ExtArgs["result"]["wishlistItem"]>
+  export type WishlistItemOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "userId" | "productId" | "createdAt" | "customSelections" | "selectedColor" | "selectedSize" | "selectedVariant", ExtArgs["result"]["wishlistItem"]>
   export type WishlistItemInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     user?: boolean | UserDefaultArgs<ExtArgs>
   }
@@ -14236,6 +14272,10 @@ export namespace Prisma {
       userId: number
       productId: number
       createdAt: Date
+      customSelections: Prisma.JsonValue | null
+      selectedColor: string | null
+      selectedSize: string | null
+      selectedVariant: Prisma.JsonValue | null
     }, ExtArgs["result"]["wishlistItem"]>
     composites: {}
   }
@@ -14664,6 +14704,10 @@ export namespace Prisma {
     readonly userId: FieldRef<"WishlistItem", 'Int'>
     readonly productId: FieldRef<"WishlistItem", 'Int'>
     readonly createdAt: FieldRef<"WishlistItem", 'DateTime'>
+    readonly customSelections: FieldRef<"WishlistItem", 'Json'>
+    readonly selectedColor: FieldRef<"WishlistItem", 'String'>
+    readonly selectedSize: FieldRef<"WishlistItem", 'String'>
+    readonly selectedVariant: FieldRef<"WishlistItem", 'Json'>
   }
     
 
@@ -18888,7 +18932,11 @@ export namespace Prisma {
     id: 'id',
     userId: 'userId',
     productId: 'productId',
-    createdAt: 'createdAt'
+    createdAt: 'createdAt',
+    customSelections: 'customSelections',
+    selectedColor: 'selectedColor',
+    selectedSize: 'selectedSize',
+    selectedVariant: 'selectedVariant'
   };
 
   export type WishlistItemScalarFieldEnum = (typeof WishlistItemScalarFieldEnum)[keyof typeof WishlistItemScalarFieldEnum]
@@ -19864,6 +19912,10 @@ export namespace Prisma {
     userId?: IntFilter<"WishlistItem"> | number
     productId?: IntFilter<"WishlistItem"> | number
     createdAt?: DateTimeFilter<"WishlistItem"> | Date | string
+    customSelections?: JsonNullableFilter<"WishlistItem">
+    selectedColor?: StringNullableFilter<"WishlistItem"> | string | null
+    selectedSize?: StringNullableFilter<"WishlistItem"> | string | null
+    selectedVariant?: JsonNullableFilter<"WishlistItem">
     user?: XOR<UserScalarRelationFilter, UserWhereInput>
   }
 
@@ -19872,26 +19924,37 @@ export namespace Prisma {
     userId?: SortOrder
     productId?: SortOrder
     createdAt?: SortOrder
+    customSelections?: SortOrderInput | SortOrder
+    selectedColor?: SortOrderInput | SortOrder
+    selectedSize?: SortOrderInput | SortOrder
+    selectedVariant?: SortOrderInput | SortOrder
     user?: UserOrderByWithRelationInput
   }
 
   export type WishlistItemWhereUniqueInput = Prisma.AtLeast<{
     id?: number
-    userId_productId?: WishlistItemUserIdProductIdCompoundUniqueInput
     AND?: WishlistItemWhereInput | WishlistItemWhereInput[]
     OR?: WishlistItemWhereInput[]
     NOT?: WishlistItemWhereInput | WishlistItemWhereInput[]
     userId?: IntFilter<"WishlistItem"> | number
     productId?: IntFilter<"WishlistItem"> | number
     createdAt?: DateTimeFilter<"WishlistItem"> | Date | string
+    customSelections?: JsonNullableFilter<"WishlistItem">
+    selectedColor?: StringNullableFilter<"WishlistItem"> | string | null
+    selectedSize?: StringNullableFilter<"WishlistItem"> | string | null
+    selectedVariant?: JsonNullableFilter<"WishlistItem">
     user?: XOR<UserScalarRelationFilter, UserWhereInput>
-  }, "id" | "userId_productId">
+  }, "id">
 
   export type WishlistItemOrderByWithAggregationInput = {
     id?: SortOrder
     userId?: SortOrder
     productId?: SortOrder
     createdAt?: SortOrder
+    customSelections?: SortOrderInput | SortOrder
+    selectedColor?: SortOrderInput | SortOrder
+    selectedSize?: SortOrderInput | SortOrder
+    selectedVariant?: SortOrderInput | SortOrder
     _count?: WishlistItemCountOrderByAggregateInput
     _avg?: WishlistItemAvgOrderByAggregateInput
     _max?: WishlistItemMaxOrderByAggregateInput
@@ -19907,6 +19970,10 @@ export namespace Prisma {
     userId?: IntWithAggregatesFilter<"WishlistItem"> | number
     productId?: IntWithAggregatesFilter<"WishlistItem"> | number
     createdAt?: DateTimeWithAggregatesFilter<"WishlistItem"> | Date | string
+    customSelections?: JsonNullableWithAggregatesFilter<"WishlistItem">
+    selectedColor?: StringNullableWithAggregatesFilter<"WishlistItem"> | string | null
+    selectedSize?: StringNullableWithAggregatesFilter<"WishlistItem"> | string | null
+    selectedVariant?: JsonNullableWithAggregatesFilter<"WishlistItem">
   }
 
   export type OrderWhereInput = {
@@ -21024,6 +21091,10 @@ export namespace Prisma {
   export type WishlistItemCreateInput = {
     productId: number
     createdAt?: Date | string
+    customSelections?: NullableJsonNullValueInput | InputJsonValue
+    selectedColor?: string | null
+    selectedSize?: string | null
+    selectedVariant?: NullableJsonNullValueInput | InputJsonValue
     user: UserCreateNestedOneWithoutWishlistItemsInput
   }
 
@@ -21032,11 +21103,19 @@ export namespace Prisma {
     userId: number
     productId: number
     createdAt?: Date | string
+    customSelections?: NullableJsonNullValueInput | InputJsonValue
+    selectedColor?: string | null
+    selectedSize?: string | null
+    selectedVariant?: NullableJsonNullValueInput | InputJsonValue
   }
 
   export type WishlistItemUpdateInput = {
     productId?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    customSelections?: NullableJsonNullValueInput | InputJsonValue
+    selectedColor?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedSize?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedVariant?: NullableJsonNullValueInput | InputJsonValue
     user?: UserUpdateOneRequiredWithoutWishlistItemsNestedInput
   }
 
@@ -21045,6 +21124,10 @@ export namespace Prisma {
     userId?: IntFieldUpdateOperationsInput | number
     productId?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    customSelections?: NullableJsonNullValueInput | InputJsonValue
+    selectedColor?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedSize?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedVariant?: NullableJsonNullValueInput | InputJsonValue
   }
 
   export type WishlistItemCreateManyInput = {
@@ -21052,11 +21135,19 @@ export namespace Prisma {
     userId: number
     productId: number
     createdAt?: Date | string
+    customSelections?: NullableJsonNullValueInput | InputJsonValue
+    selectedColor?: string | null
+    selectedSize?: string | null
+    selectedVariant?: NullableJsonNullValueInput | InputJsonValue
   }
 
   export type WishlistItemUpdateManyMutationInput = {
     productId?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    customSelections?: NullableJsonNullValueInput | InputJsonValue
+    selectedColor?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedSize?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedVariant?: NullableJsonNullValueInput | InputJsonValue
   }
 
   export type WishlistItemUncheckedUpdateManyInput = {
@@ -21064,6 +21155,10 @@ export namespace Prisma {
     userId?: IntFieldUpdateOperationsInput | number
     productId?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    customSelections?: NullableJsonNullValueInput | InputJsonValue
+    selectedColor?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedSize?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedVariant?: NullableJsonNullValueInput | InputJsonValue
   }
 
   export type OrderCreateInput = {
@@ -22246,16 +22341,15 @@ export namespace Prisma {
     quantity?: SortOrder
   }
 
-  export type WishlistItemUserIdProductIdCompoundUniqueInput = {
-    userId: number
-    productId: number
-  }
-
   export type WishlistItemCountOrderByAggregateInput = {
     id?: SortOrder
     userId?: SortOrder
     productId?: SortOrder
     createdAt?: SortOrder
+    customSelections?: SortOrder
+    selectedColor?: SortOrder
+    selectedSize?: SortOrder
+    selectedVariant?: SortOrder
   }
 
   export type WishlistItemAvgOrderByAggregateInput = {
@@ -22269,6 +22363,8 @@ export namespace Prisma {
     userId?: SortOrder
     productId?: SortOrder
     createdAt?: SortOrder
+    selectedColor?: SortOrder
+    selectedSize?: SortOrder
   }
 
   export type WishlistItemMinOrderByAggregateInput = {
@@ -22276,6 +22372,8 @@ export namespace Prisma {
     userId?: SortOrder
     productId?: SortOrder
     createdAt?: SortOrder
+    selectedColor?: SortOrder
+    selectedSize?: SortOrder
   }
 
   export type WishlistItemSumOrderByAggregateInput = {
@@ -23619,12 +23717,20 @@ export namespace Prisma {
   export type WishlistItemCreateWithoutUserInput = {
     productId: number
     createdAt?: Date | string
+    customSelections?: NullableJsonNullValueInput | InputJsonValue
+    selectedColor?: string | null
+    selectedSize?: string | null
+    selectedVariant?: NullableJsonNullValueInput | InputJsonValue
   }
 
   export type WishlistItemUncheckedCreateWithoutUserInput = {
     id?: number
     productId: number
     createdAt?: Date | string
+    customSelections?: NullableJsonNullValueInput | InputJsonValue
+    selectedColor?: string | null
+    selectedSize?: string | null
+    selectedVariant?: NullableJsonNullValueInput | InputJsonValue
   }
 
   export type WishlistItemCreateOrConnectWithoutUserInput = {
@@ -23765,6 +23871,10 @@ export namespace Prisma {
     userId?: IntFilter<"WishlistItem"> | number
     productId?: IntFilter<"WishlistItem"> | number
     createdAt?: DateTimeFilter<"WishlistItem"> | Date | string
+    customSelections?: JsonNullableFilter<"WishlistItem">
+    selectedColor?: StringNullableFilter<"WishlistItem"> | string | null
+    selectedSize?: StringNullableFilter<"WishlistItem"> | string | null
+    selectedVariant?: JsonNullableFilter<"WishlistItem">
   }
 
   export type SubCategoryCreateWithoutCategoryInput = {
@@ -25244,6 +25354,10 @@ export namespace Prisma {
     id?: number
     productId: number
     createdAt?: Date | string
+    customSelections?: NullableJsonNullValueInput | InputJsonValue
+    selectedColor?: string | null
+    selectedSize?: string | null
+    selectedVariant?: NullableJsonNullValueInput | InputJsonValue
   }
 
   export type AddressUpdateWithoutUserInput = {
@@ -25380,18 +25494,30 @@ export namespace Prisma {
   export type WishlistItemUpdateWithoutUserInput = {
     productId?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    customSelections?: NullableJsonNullValueInput | InputJsonValue
+    selectedColor?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedSize?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedVariant?: NullableJsonNullValueInput | InputJsonValue
   }
 
   export type WishlistItemUncheckedUpdateWithoutUserInput = {
     id?: IntFieldUpdateOperationsInput | number
     productId?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    customSelections?: NullableJsonNullValueInput | InputJsonValue
+    selectedColor?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedSize?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedVariant?: NullableJsonNullValueInput | InputJsonValue
   }
 
   export type WishlistItemUncheckedUpdateManyWithoutUserInput = {
     id?: IntFieldUpdateOperationsInput | number
     productId?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    customSelections?: NullableJsonNullValueInput | InputJsonValue
+    selectedColor?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedSize?: NullableStringFieldUpdateOperationsInput | string | null
+    selectedVariant?: NullableJsonNullValueInput | InputJsonValue
   }
 
   export type SubCategoryCreateManyCategoryInput = {

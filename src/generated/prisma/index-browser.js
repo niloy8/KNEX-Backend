@@ -240,7 +240,11 @@ exports.Prisma.WishlistItemScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
   productId: 'productId',
-  createdAt: 'createdAt'
+  createdAt: 'createdAt',
+  customSelections: 'customSelections',
+  selectedColor: 'selectedColor',
+  selectedSize: 'selectedSize',
+  selectedVariant: 'selectedVariant'
 };
 
 exports.Prisma.OrderScalarFieldEnum = {

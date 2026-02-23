@@ -67,18 +67,21 @@ wishlistRouter.get('/', async (req: Request, res: Response) => {
             createdAt: Date;
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const items = (wishlistItems as any[]).map((item: WishlistItemData) => {
+        const items = (wishlistItems as any[]).map((item: any) => {
             const product = productMap.get(item.productId);
             return {
                 id: item.id.toString(),
                 productId: item.productId,
                 title: product?.title || '',
                 slug: product?.slug || '',
-                price: product?.price || 0,
+                price: item.selectedVariant?.price || product?.price || 0,
                 originalPrice: product?.originalPrice || product?.price || 0,
-                image: product?.images?.[0] || '',
+                image: item.selectedVariant?.image || product?.images?.[0] || '',
                 inStock: (product?.stock || 0) > 0,
+                selectedColor: item.selectedColor,
+                selectedSize: item.selectedSize,
+                selectedVariant: item.selectedVariant,
+                customSelections: item.customSelections,
                 addedOn: item.createdAt.toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
@@ -102,7 +105,7 @@ wishlistRouter.post('/', async (req: Request, res: Response) => {
         return;
     }
 
-    const { productId } = req.body;
+    const { productId, selectedColor, selectedSize, selectedVariant, customSelections } = req.body;
 
     if (!productId) {
         res.status(400).json({ error: 'Product ID is required' });
@@ -110,14 +113,30 @@ wishlistRouter.post('/', async (req: Request, res: Response) => {
     }
 
     try {
-        const wishlistItem = await prisma.wishlistItem.upsert({
+        // Find if exactly the same item already exists in wishlist
+        const existing = await prisma.wishlistItem.findFirst({
             where: {
-                userId_productId: { userId, productId: Number(productId) },
-            },
-            update: {},
-            create: {
                 userId,
                 productId: Number(productId),
+                selectedColor: selectedColor || null,
+                selectedSize: selectedSize || null,
+                customSelections: { equals: customSelections || null } as any,
+            },
+        });
+
+        if (existing) {
+            res.json({ success: true, wishlistItem: existing, message: 'Item already in wishlist' });
+            return;
+        }
+
+        const wishlistItem = await prisma.wishlistItem.create({
+            data: {
+                userId,
+                productId: Number(productId),
+                selectedColor: selectedColor || null,
+                selectedSize: selectedSize || null,
+                selectedVariant: selectedVariant || null,
+                customSelections: customSelections || null,
             },
         });
 
@@ -137,12 +156,28 @@ wishlistRouter.delete('/:productId', async (req: Request, res: Response) => {
     }
 
     const { productId } = req.params;
+    const { selectedColor, selectedSize, customSelections } = req.query;
 
     try {
-        await prisma.wishlistItem.delete({
-            where: {
-                userId_productId: { userId, productId: Number(productId) },
-            },
+        const where: any = {
+            userId,
+            productId: Number(productId),
+        };
+
+        if (selectedColor !== undefined) {
+            where.selectedColor = selectedColor || null;
+        }
+        if (selectedSize !== undefined) {
+            where.selectedSize = selectedSize || null;
+        }
+        if (customSelections !== undefined) {
+            const parsed = customSelections ? JSON.parse(customSelections as string) : null;
+            where.customSelections = { equals: parsed };
+        }
+
+        await prisma.wishlistItem.deleteMany({
+            where:
+                where
         });
 
         res.json({ success: true });
@@ -160,7 +195,7 @@ wishlistRouter.post('/toggle', async (req: Request, res: Response) => {
         return;
     }
 
-    const { productId } = req.body;
+    const { productId, selectedColor, selectedSize, selectedVariant, customSelections } = req.body;
 
     if (!productId) {
         res.status(400).json({ error: 'Product ID is required' });
@@ -168,9 +203,13 @@ wishlistRouter.post('/toggle', async (req: Request, res: Response) => {
     }
 
     try {
-        const existing = await prisma.wishlistItem.findUnique({
+        const existing = await prisma.wishlistItem.findFirst({
             where: {
-                userId_productId: { userId, productId: Number(productId) },
+                userId,
+                productId: Number(productId),
+                selectedColor: selectedColor || null,
+                selectedSize: selectedSize || null,
+                customSelections: { equals: customSelections || null } as any,
             },
         });
 
@@ -184,6 +223,10 @@ wishlistRouter.post('/toggle', async (req: Request, res: Response) => {
                 data: {
                     userId,
                     productId: Number(productId),
+                    selectedColor: selectedColor || null,
+                    selectedSize: selectedSize || null,
+                    selectedVariant: selectedVariant || null,
+                    customSelections: customSelections || null,
                 },
             });
             res.json({ success: true, action: 'added' });
@@ -203,12 +246,29 @@ wishlistRouter.get('/check/:productId', async (req: Request, res: Response) => {
     }
 
     const { productId } = req.params;
+    const { selectedColor, selectedSize, customSelections } = req.query;
 
     try {
-        const item = await prisma.wishlistItem.findUnique({
-            where: {
-                userId_productId: { userId, productId: Number(productId) },
-            },
+        const where: any = {
+            userId,
+            productId: Number(productId),
+            selectedColor: (selectedColor as string) || null,
+            selectedSize: (selectedSize as string) || null,
+        };
+
+        if (customSelections) {
+            const parsed = JSON.parse(customSelections as string);
+            where.customSelections = { equals: parsed };
+        } else if (customSelections === undefined) {
+            // If not provided in query, we don't filter by it (allows broad check)
+            // But if it IS null/empty in query, we might want strict check.
+            // Usually 'check' is called with current selections.
+        } else {
+            where.customSelections = { equals: null };
+        }
+
+        const item = await prisma.wishlistItem.findFirst({
+            where: where
         });
 
         res.json({ inWishlist: !!item });
@@ -234,18 +294,35 @@ wishlistRouter.post('/sync', async (req: Request, res: Response) => {
     }
 
     try {
-        // Upsert each item
-        for (const productId of items) {
-            await prisma.wishlistItem.upsert({
+        // Upsert each item manually
+        for (const item of items) {
+            const productId = typeof item === 'number' ? item : item.productId;
+            const selectedColor = item.selectedColor || null;
+            const selectedSize = item.selectedSize || null;
+            const selectedVariant = item.selectedVariant || null;
+            const customSelections = item.customSelections || null;
+
+            const existing = await prisma.wishlistItem.findFirst({
                 where: {
-                    userId_productId: { userId, productId: Number(productId) },
-                },
-                update: {},
-                create: {
                     userId,
                     productId: Number(productId),
+                    selectedColor,
+                    selectedSize,
                 },
             });
+
+            if (!existing) {
+                await prisma.wishlistItem.create({
+                    data: {
+                        userId,
+                        productId: Number(productId),
+                        selectedColor,
+                        selectedSize,
+                        selectedVariant,
+                        customSelections,
+                    },
+                });
+            }
         }
 
         res.json({ success: true });

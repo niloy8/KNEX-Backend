@@ -1,8 +1,17 @@
 FROM node:22-alpine
+
 WORKDIR /app
-COPY . .
+
+COPY package*.json ./
 RUN npm install
-RUN DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres" npm run build
+
+COPY . .
+
+RUN npx prisma generate
+RUN npm run build
+
 ENV NODE_ENV=production
+
 EXPOSE 5000
-CMD ["npm", "start"]
+
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]

@@ -46,21 +46,27 @@
 
 # Dockerfile snippet
 
-# Use Node image
 FROM node:22-alpine
 WORKDIR /app
 
+# Copy package.json and package-lock.json
 COPY package*.json ./
+
+# Install ALL dependencies (needed for build)
 RUN npm install
 
+# Copy project files
 COPY . .
 
-# Temporary dummy DB URL so prisma generate works at build
-ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres"
+# Set temporary dummy DATABASE_URL so prisma generate works at build
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npx prisma generate
 
-# Build TypeScript
-RUN tsc
+# Build TypeScript using npx
+RUN npx tsc
+
+# Remove dev dependencies to reduce image size (optional)
+RUN npm prune --production
 
 # Set production environment
 ENV NODE_ENV=production

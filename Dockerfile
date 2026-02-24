@@ -44,22 +44,19 @@
 # # Safe production start: run migrations before starting app
 # CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
 
-# Use official Node image
-FROM node:22-alpine
+# Dockerfile snippet
 
-# Set working directory
+# Use Node image
+FROM node:22-alpine
 WORKDIR /app
 
-# Copy only package files first for caching
 COPY package*.json ./
+RUN npm install
 
-# Install dependencies
-RUN npm install --omit=dev
-
-# Copy the rest of the code
 COPY . .
 
-# Generate Prisma client (does NOT require a live DB)
+# Temporary dummy DB URL so prisma generate works at build
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres"
 RUN npx prisma generate
 
 # Build TypeScript
@@ -71,5 +68,5 @@ ENV NODE_ENV=production
 # Expose port
 EXPOSE 5000
 
-# Run migrations at container start and then start the app
+# Run migrations at container start with real DB
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]

@@ -6,6 +6,7 @@ node_modules
 /prisma/generated/prisma
 
 /generated/prisma
+error_log.txt
 
 
 

@@ -24,22 +24,52 @@
 # # Start command
 # CMD ["node", "dist/index.js"]
 
+# FROM node:22-alpine
+
+# WORKDIR /app
+
+# COPY package*.json ./
+# RUN npm install --production
+
+# COPY . .
+
+# # Build TS and generate Prisma client
+# RUN npm run build
+
+# # Production env
+# ENV NODE_ENV=production
+
+# EXPOSE 5000
+
+# # Safe production start: run migrations before starting app
+# CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+
+# Use official Node image
 FROM node:22-alpine
 
+# Set working directory
 WORKDIR /app
 
+# Copy only package files first for caching
 COPY package*.json ./
-RUN npm install --production
 
+# Install dependencies
+RUN npm install --omit=dev
+
+# Copy the rest of the code
 COPY . .
 
-# Build TS and generate Prisma client
-RUN npm run build
+# Generate Prisma client (does NOT require a live DB)
+RUN npx prisma generate
 
-# Production env
+# Build TypeScript
+RUN tsc
+
+# Set production environment
 ENV NODE_ENV=production
 
+# Expose port
 EXPOSE 5000
 
-# Safe production start: run migrations before starting app
+# Run migrations at container start and then start the app
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]

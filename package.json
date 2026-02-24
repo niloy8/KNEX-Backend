@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate && tsc",
-    "start": "npx prisma db push --accept-data-loss && npm run seed && node dist/index.js",
+    "start": "npx prisma migrate deploy && node dist/index.js",
     "script": "tsx src/script.ts",
     "seed": "tsx src/seed.ts",
     "studio": "prisma studio",

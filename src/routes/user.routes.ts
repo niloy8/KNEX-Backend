@@ -2,26 +2,13 @@ import { Router, Request, Response } from 'express';
 import { getUsers, createUser } from '../controllers/user.controller.js';
 import { prisma } from '../lib/prisma.js';
 import jwt from 'jsonwebtoken';
+import { adminAuth, userAuth } from '../middleware/auth.middleware.js';
 export const userRouter = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-in-production';
 
-// Admin auth helper
-const getAdminFromToken = (req: Request): { id: number } | null => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) return null;
-
-    try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET) as { id: number };
-        return decoded;
-    } catch {
-        return null;
-    }
-};
-
-userRouter.get('/', getUsers);
-userRouter.post('/', createUser);
+userRouter.get('/', adminAuth, getUsers);
+userRouter.post('/', adminAuth, createUser);
 
 // Sync Firebase user with backend and get JWT token
 userRouter.post('/sync', async (req: Request, res: Response) => {
@@ -72,19 +59,10 @@ userRouter.post('/sync', async (req: Request, res: Response) => {
 });
 
 // Get current user info from token
-userRouter.get('/me', async (req: Request, res: Response) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
-
+userRouter.get('/me', userAuth, async (req: any, res: Response) => {
     try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
-
         const user = await prisma.user.findUnique({
-            where: { id: decoded.userId },
+            where: { id: req.userId },
             select: { id: true, email: true, name: true },
         });
 
@@ -95,26 +73,17 @@ userRouter.get('/me', async (req: Request, res: Response) => {
 
         res.json(user);
     } catch (error) {
-        res.status(401).json({ error: 'Invalid token' });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
 // Update current user profile
-userRouter.put('/me', async (req: Request, res: Response) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
-
+userRouter.put('/me', userAuth, async (req: any, res: Response) => {
     try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
-
         const { name, email } = req.body;
 
         const updated = await prisma.user.update({
-            where: { id: decoded.userId },
+            where: { id: req.userId },
             data: {
                 ...(name && { name }),
                 ...(email && { email }),
@@ -132,13 +101,7 @@ userRouter.put('/me', async (req: Request, res: Response) => {
 // ========== ADMIN CUSTOMER ENDPOINTS ==========
 
 // Get customer statistics (Admin)
-userRouter.get('/admin/stats', async (req: Request, res: Response) => {
-    const admin = getAdminFromToken(req);
-    if (!admin) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
-
+userRouter.get('/admin/stats', adminAuth, async (req: Request, res: Response) => {
     try {
         // Get total customers (users with at least one order)
         const customersWithOrders = await prisma.user.findMany({
@@ -193,13 +156,7 @@ userRouter.get('/admin/stats', async (req: Request, res: Response) => {
 });
 
 // Get all customers with order data (Admin)
-userRouter.get('/admin/customers', async (req: Request, res: Response) => {
-    const admin = getAdminFromToken(req);
-    if (!admin) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
-
+userRouter.get('/admin/customers', adminAuth, async (req: Request, res: Response) => {
     try {
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 20;
@@ -316,13 +273,7 @@ userRouter.get('/admin/customers', async (req: Request, res: Response) => {
 });
 
 // Export customers as CSV (Admin) - Enhanced with full order details
-userRouter.get('/admin/customers/export', async (req: Request, res: Response) => {
-    const admin = getAdminFromToken(req);
-    if (!admin) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
-
+userRouter.get('/admin/customers/export', adminAuth, async (req: Request, res: Response) => {
     try {
         const customers = await prisma.user.findMany({
             where: { orders: { some: {} } },

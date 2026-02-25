@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
-import jwt from 'jsonwebtoken';
+import { userAuth } from '../middleware/auth.middleware.js';
 export const cartRouter = Router();
 
 // Define shared interface for type safety
@@ -17,27 +17,10 @@ interface CartItemData {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// Middleware to get user from token
-const getUserFromToken = (req: Request): number | null => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) return null;
-
-    try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
-        return decoded.userId;
-    } catch {
-        return null;
-    }
-};
 
 // Get cart items
-cartRouter.get('/', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+cartRouter.get('/', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     try {
         const cartItems = await prisma.cartItem.findMany({
@@ -115,12 +98,8 @@ cartRouter.get('/', async (req: Request, res: Response) => {
 });
 
 // Add to cart
-cartRouter.post('/', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+cartRouter.post('/', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const { productId, quantity = 1, selectedColor, selectedSize, selectedVariant, customSelections } = req.body;
 
@@ -181,12 +160,8 @@ cartRouter.post('/', async (req: Request, res: Response) => {
 });
 
 // Update cart item quantity
-cartRouter.put('/:itemId', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+cartRouter.put('/:itemId', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const { itemId } = req.params;
     const { quantity } = req.body;
@@ -220,12 +195,8 @@ cartRouter.put('/:itemId', async (req: Request, res: Response) => {
 });
 
 // Remove from cart
-cartRouter.delete('/:itemId', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+cartRouter.delete('/:itemId', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const { itemId } = req.params;
 
@@ -252,12 +223,8 @@ cartRouter.delete('/:itemId', async (req: Request, res: Response) => {
 });
 
 // Sync guest cart to user cart (called on login)
-cartRouter.post('/sync', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+cartRouter.post('/sync', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const { items } = req.body; // Array of { productId, quantity, selectedColor, selectedSize, selectedVariant, customSelections }
 
@@ -316,12 +283,8 @@ cartRouter.post('/sync', async (req: Request, res: Response) => {
 });
 
 // Clear cart
-cartRouter.delete('/', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+cartRouter.delete('/', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     try {
         await prisma.cartItem.deleteMany({

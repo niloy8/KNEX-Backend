@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { Prisma } from '@prisma/client';
-import jwt from 'jsonwebtoken';
+import { adminAuth, userAuth } from '../middleware/auth.middleware.js';
 
 export const orderRouter = Router();
 
@@ -9,11 +9,19 @@ console.log('Order routes loaded!');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-in-production';
 
-// Debug endpoint - check if orders exist (no auth required for testing)
-orderRouter.get('/debug/count', async (req: Request, res: Response) => {
+// Debug endpoint - check if orders exist (Admin only)
+orderRouter.get('/debug/count', adminAuth, async (req: Request, res: Response) => {
     try {
         const count = await prisma.order.count();
-        const orders = await prisma.order.findMany({ take: 5 });
+        const orders = await prisma.order.findMany({
+            take: 5,
+            select: {
+                id: true,
+                orderNumber: true,
+                total: true,
+                status: true,
+            }
+        });
         console.log('Debug: Order count =', count);
         res.json({ count, sampleOrders: orders });
     } catch (error) {
@@ -22,34 +30,6 @@ orderRouter.get('/debug/count', async (req: Request, res: Response) => {
     }
 });
 
-// Middleware to get user from token
-const getUserFromToken = (req: Request): number | null => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) return null;
-
-    try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
-        return decoded.userId;
-    } catch {
-        return null;
-    }
-};
-
-// Admin auth middleware - uses same secret and format as admin.routes.ts
-const getAdminFromToken = (req: Request): { id: number } | null => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) return null;
-
-    try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET) as { id: number };
-        return decoded;
-    } catch (error) {
-        console.error('Admin token verification failed:', error);
-        return null;
-    }
-};
 
 // Generate unique order number
 const generateOrderNumber = (): string => {
@@ -59,8 +39,8 @@ const generateOrderNumber = (): string => {
 };
 
 // Create new order (User)
-orderRouter.post('/', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
+orderRouter.post('/', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
     console.log('POST /orders - userId from token:', userId);
 
     if (!userId) {
@@ -214,8 +194,8 @@ orderRouter.post('/', async (req: Request, res: Response) => {
 });
 
 // Get user's orders
-orderRouter.get('/my-orders', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
+orderRouter.get('/my-orders', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
     console.log('GET /my-orders - userId from token:', userId);
 
     if (!userId) {
@@ -246,8 +226,8 @@ orderRouter.get('/my-orders', async (req: Request, res: Response) => {
 });
 
 // Get single order by ID (User)
-orderRouter.get('/my-orders/:id', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
+orderRouter.get('/my-orders/:id', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
     if (!userId) {
         res.status(401).json({ error: 'Unauthorized' });
         return;
@@ -281,9 +261,9 @@ orderRouter.get('/my-orders/:id', async (req: Request, res: Response) => {
 // ============ ADMIN ROUTES ============
 
 // Get all orders (Admin)
-orderRouter.get('/admin/all', async (req: Request, res: Response) => {
+orderRouter.get('/admin/all', adminAuth, async (req: any, res: Response) => {
     console.log('GET /admin/all called');
-    const admin = getAdminFromToken(req);
+    const admin = req.admin;
     console.log('Admin from token:', admin);
 
     if (!admin) {
@@ -334,8 +314,8 @@ orderRouter.get('/admin/all', async (req: Request, res: Response) => {
 });
 
 // Get order statistics (Admin) - MUST be before /:id route
-orderRouter.get('/admin/stats/summary', async (req: Request, res: Response) => {
-    const admin = getAdminFromToken(req);
+orderRouter.get('/admin/stats/summary', adminAuth, async (req: any, res: Response) => {
+    const admin = req.admin;
     if (!admin) {
         res.status(401).json({ error: 'Unauthorized' });
         return;
@@ -376,8 +356,8 @@ orderRouter.get('/admin/stats/summary', async (req: Request, res: Response) => {
 });
 
 // Get sales chart data (Admin) - MUST be before /:id route
-orderRouter.get('/admin/stats/sales-chart', async (req: Request, res: Response) => {
-    const admin = getAdminFromToken(req);
+orderRouter.get('/admin/stats/sales-chart', adminAuth, async (req: any, res: Response) => {
+    const admin = req.admin;
     if (!admin) {
         res.status(401).json({ error: 'Unauthorized' });
         return;
@@ -500,8 +480,8 @@ orderRouter.get('/admin/stats/sales-chart', async (req: Request, res: Response) 
 });
 
 // Get new orders for notifications (Admin) - MUST be before /:id route
-orderRouter.get('/admin/notifications', async (req: Request, res: Response) => {
-    const admin = getAdminFromToken(req);
+orderRouter.get('/admin/notifications', adminAuth, async (req: any, res: Response) => {
+    const admin = req.admin;
     if (!admin) {
         res.status(401).json({ error: 'Unauthorized' });
         return;
@@ -546,8 +526,8 @@ orderRouter.get('/admin/notifications', async (req: Request, res: Response) => {
 });
 
 // Get single order (Admin) - MUST be AFTER all specific /admin/* routes
-orderRouter.get('/admin/:id', async (req: Request, res: Response) => {
-    const admin = getAdminFromToken(req);
+orderRouter.get('/admin/:id', adminAuth, async (req: any, res: Response) => {
+    const admin = req.admin;
     if (!admin) {
         res.status(401).json({ error: 'Unauthorized' });
         return;
@@ -583,8 +563,8 @@ orderRouter.get('/admin/:id', async (req: Request, res: Response) => {
 });
 
 // Update order status (Admin)
-orderRouter.put('/admin/:id/status', async (req: Request, res: Response) => {
-    const admin = getAdminFromToken(req);
+orderRouter.put('/admin/:id/status', adminAuth, async (req: any, res: Response) => {
+    const admin = req.admin;
     if (!admin) {
         res.status(401).json({ error: 'Unauthorized' });
         return;
@@ -654,8 +634,8 @@ orderRouter.put('/admin/:id/status', async (req: Request, res: Response) => {
 });
 
 // Delete order (Admin)
-orderRouter.delete('/admin/:id', async (req: Request, res: Response) => {
-    const admin = getAdminFromToken(req);
+orderRouter.delete('/admin/:id', adminAuth, async (req: any, res: Response) => {
+    const admin = req.admin;
     if (!admin) {
         res.status(401).json({ error: 'Unauthorized' });
         return;

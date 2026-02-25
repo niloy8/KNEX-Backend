@@ -7,21 +7,7 @@ import { prisma } from "../lib/prisma.js";
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-key-change-in-production";
 
-// Auth middleware
-export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-    const token = req.headers.authorization?.replace("Bearer ", "");
-    if (!token) return res.status(401).json({ error: "Unauthorized" });
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET) as { id: number };
-        const admin = await prisma.admin.findUnique({ where: { id: decoded.id } });
-        if (!admin) return res.status(401).json({ error: "Invalid token" });
-        (req as any).admin = admin;
-        next();
-    } catch (error) {
-        console.error("Auth error:", error);
-        res.status(401).json({ error: "Invalid token" });
-    }
-};
+import { adminAuth as authMiddleware } from '../middleware/auth.middleware.js';
 
 // Login
 router.post("/login", async (req, res) => {

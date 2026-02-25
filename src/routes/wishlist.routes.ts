@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
-import jwt from 'jsonwebtoken';
+import { userAuth } from '../middleware/auth.middleware.js';
 export const wishlistRouter = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -16,27 +16,10 @@ interface WishlistItemData {
     customSelections: any;
 }
 
-// Middleware to get user from token
-const getUserFromToken = (req: Request): number | null => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) return null;
-
-    try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
-        return decoded.userId;
-    } catch {
-        return null;
-    }
-};
 
 // Get wishlist items
-wishlistRouter.get('/', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+wishlistRouter.get('/', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     try {
         const wishlistItems = await prisma.wishlistItem.findMany({
@@ -109,12 +92,8 @@ wishlistRouter.get('/', async (req: Request, res: Response) => {
 });
 
 // Add to wishlist
-wishlistRouter.post('/', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+wishlistRouter.post('/', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const { productId, selectedColor, selectedSize, selectedVariant, customSelections } = req.body;
 
@@ -165,12 +144,8 @@ wishlistRouter.post('/', async (req: Request, res: Response) => {
 });
 
 // Remove from wishlist
-wishlistRouter.delete('/:productId', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+wishlistRouter.delete('/:productId', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const { productId } = req.params;
     const { selectedColor, selectedSize, selectedVariant, customSelections } = req.query;
@@ -210,12 +185,8 @@ wishlistRouter.delete('/:productId', async (req: Request, res: Response) => {
 });
 
 // Toggle wishlist (add if not exists, remove if exists)
-wishlistRouter.post('/toggle', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+wishlistRouter.post('/toggle', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const { productId, selectedColor, selectedSize, selectedVariant, customSelections } = req.body;
 
@@ -265,12 +236,8 @@ wishlistRouter.post('/toggle', async (req: Request, res: Response) => {
 });
 
 // Check if product is in wishlist
-wishlistRouter.get('/check/:productId', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+wishlistRouter.get('/check/:productId', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const { productId } = req.params;
     const { selectedColor, selectedSize, selectedVariant, customSelections } = req.query;
@@ -299,12 +266,8 @@ wishlistRouter.get('/check/:productId', async (req: Request, res: Response) => {
 });
 
 // Sync guest wishlist to user wishlist (called on login)
-wishlistRouter.post('/sync', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+wishlistRouter.post('/sync', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const { items } = req.body; // Array of productIds
 
@@ -359,12 +322,8 @@ wishlistRouter.post('/sync', async (req: Request, res: Response) => {
 });
 
 // Clear wishlist
-wishlistRouter.delete('/', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+wishlistRouter.delete('/', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     try {
         await prisma.wishlistItem.deleteMany({

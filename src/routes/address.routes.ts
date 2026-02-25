@@ -1,32 +1,15 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
-import jwt from 'jsonwebtoken';
+import { userAuth } from '../middleware/auth.middleware.js';
 
 export const addressRouter = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-in-production';
 
-// Get user from token
-const getUserFromToken = (req: Request): number | null => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) return null;
-
-    try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
-        return decoded.userId;
-    } catch {
-        return null;
-    }
-};
 
 // Get all addresses for user
-addressRouter.get('/', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+addressRouter.get('/', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     try {
         const addresses = await prisma.address.findMany({
@@ -41,12 +24,8 @@ addressRouter.get('/', async (req: Request, res: Response) => {
 });
 
 // Get single address
-addressRouter.get('/:id', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+addressRouter.get('/:id', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const addressId = parseInt(req.params.id);
 
@@ -68,12 +47,8 @@ addressRouter.get('/:id', async (req: Request, res: Response) => {
 });
 
 // Create new address
-addressRouter.post('/', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+addressRouter.post('/', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const { type, name, phone, address, area, city, isDefault } = req.body;
 
@@ -116,12 +91,8 @@ addressRouter.post('/', async (req: Request, res: Response) => {
 });
 
 // Update address
-addressRouter.put('/:id', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+addressRouter.put('/:id', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const addressId = parseInt(req.params.id);
     const { type, name, phone, address, area, city, isDefault } = req.body;
@@ -166,12 +137,8 @@ addressRouter.put('/:id', async (req: Request, res: Response) => {
 });
 
 // Set address as default
-addressRouter.patch('/:id/default', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+addressRouter.patch('/:id/default', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const addressId = parseInt(req.params.id);
 
@@ -206,12 +173,8 @@ addressRouter.patch('/:id/default', async (req: Request, res: Response) => {
 });
 
 // Delete address
-addressRouter.delete('/:id', async (req: Request, res: Response) => {
-    const userId = getUserFromToken(req);
-    if (!userId) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
-    }
+addressRouter.delete('/:id', userAuth, async (req: any, res: Response) => {
+    const userId = req.userId;
 
     const addressId = parseInt(req.params.id);
 

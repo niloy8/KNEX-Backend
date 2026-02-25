@@ -6,7 +6,7 @@ node_modules
 /prisma/generated/prisma
 
 /generated/prisma
-error_log.txt
+
 
 
 
@@ -20,3 +20,5 @@ dist
 
 check_order_items.ts
 check_db.ts
+error_log.txt
+sync_migration.sql

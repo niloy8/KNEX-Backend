@@ -5,6 +5,17 @@ export const wishlistRouter = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
+// Define shared interface for type safety
+interface WishlistItemData {
+    id: number;
+    userId: number;
+    productId: number;
+    selectedColor: string | null;
+    selectedSize: string | null;
+    selectedVariant: any;
+    customSelections: any;
+}
+
 // Middleware to get user from token
 const getUserFromToken = (req: Request): number | null => {
     const authHeader = req.headers.authorization;
@@ -114,14 +125,20 @@ wishlistRouter.post('/', async (req: Request, res: Response) => {
 
     try {
         // Find if exactly the same item already exists in wishlist
-        const existing = await prisma.wishlistItem.findFirst({
+        const existingItems = (await prisma.wishlistItem.findMany({
             where: {
                 userId,
                 productId: Number(productId),
-                selectedColor: selectedColor || null,
-                selectedSize: selectedSize || null,
-                customSelections: { equals: customSelections || null } as any,
             },
+        })) as unknown as WishlistItemData[];
+
+        // Find exact match including variants
+        const existing = existingItems.find((item) => {
+            const colorMatch = item.selectedColor === (selectedColor || null);
+            const sizeMatch = item.selectedSize === (selectedSize || null);
+            const variantMatch = JSON.stringify(item.selectedVariant) === JSON.stringify(selectedVariant || null);
+            const customMatch = JSON.stringify(item.customSelections) === JSON.stringify(customSelections || null);
+            return colorMatch && sizeMatch && variantMatch && customMatch;
         });
 
         if (existing) {
@@ -156,7 +173,7 @@ wishlistRouter.delete('/:productId', async (req: Request, res: Response) => {
     }
 
     const { productId } = req.params;
-    const { selectedColor, selectedSize, customSelections } = req.query;
+    const { selectedColor, selectedSize, selectedVariant, customSelections } = req.query;
 
     try {
         const where: any = {
@@ -170,14 +187,19 @@ wishlistRouter.delete('/:productId', async (req: Request, res: Response) => {
         if (selectedSize !== undefined) {
             where.selectedSize = selectedSize || null;
         }
-        if (customSelections !== undefined) {
-            const parsed = customSelections ? JSON.parse(customSelections as string) : null;
-            where.customSelections = { equals: parsed };
-        }
+
+        // For JSON fields in deleteMany, we have to fetch and delete by ID if we want exact variant match
+        // or just delete all items matching productId/color/size if that's acceptable.
+        // To be precise, we fetch first:
+        const items = await prisma.wishlistItem.findMany({ where });
+        const targetIds = items.filter(item => {
+            const variantMatch = selectedVariant === undefined || JSON.stringify(item.selectedVariant) === JSON.stringify(selectedVariant ? JSON.parse(selectedVariant as string) : null);
+            const customMatch = customSelections === undefined || JSON.stringify(item.customSelections) === JSON.stringify(customSelections ? JSON.parse(customSelections as string) : null);
+            return variantMatch && customMatch;
+        }).map(item => item.id);
 
         await prisma.wishlistItem.deleteMany({
-            where:
-                where
+            where: { id: { in: targetIds } }
         });
 
         res.json({ success: true });
@@ -203,14 +225,19 @@ wishlistRouter.post('/toggle', async (req: Request, res: Response) => {
     }
 
     try {
-        const existing = await prisma.wishlistItem.findFirst({
+        const existingItems = (await prisma.wishlistItem.findMany({
             where: {
                 userId,
                 productId: Number(productId),
-                selectedColor: selectedColor || null,
-                selectedSize: selectedSize || null,
-                customSelections: { equals: customSelections || null } as any,
             },
+        })) as unknown as WishlistItemData[];
+
+        const existing = existingItems.find((item) => {
+            const colorMatch = item.selectedColor === (selectedColor || null);
+            const sizeMatch = item.selectedSize === (selectedSize || null);
+            const variantMatch = JSON.stringify(item.selectedVariant) === JSON.stringify(selectedVariant || null);
+            const customMatch = JSON.stringify(item.customSelections) === JSON.stringify(customSelections || null);
+            return colorMatch && sizeMatch && variantMatch && customMatch;
         });
 
         if (existing) {
@@ -246,29 +273,22 @@ wishlistRouter.get('/check/:productId', async (req: Request, res: Response) => {
     }
 
     const { productId } = req.params;
-    const { selectedColor, selectedSize, customSelections } = req.query;
+    const { selectedColor, selectedSize, selectedVariant, customSelections } = req.query;
 
     try {
-        const where: any = {
-            userId,
-            productId: Number(productId),
-            selectedColor: (selectedColor as string) || null,
-            selectedSize: (selectedSize as string) || null,
-        };
+        const existingItems = (await prisma.wishlistItem.findMany({
+            where: {
+                userId,
+                productId: Number(productId),
+                selectedColor: (selectedColor as string) || null,
+                selectedSize: (selectedSize as string) || null,
+            },
+        })) as unknown as WishlistItemData[];
 
-        if (customSelections) {
-            const parsed = JSON.parse(customSelections as string);
-            where.customSelections = { equals: parsed };
-        } else if (customSelections === undefined) {
-            // If not provided in query, we don't filter by it (allows broad check)
-            // But if it IS null/empty in query, we might want strict check.
-            // Usually 'check' is called with current selections.
-        } else {
-            where.customSelections = { equals: null };
-        }
-
-        const item = await prisma.wishlistItem.findFirst({
-            where: where
+        const item = existingItems.find((item) => {
+            const variantMatch = JSON.stringify(item.selectedVariant) === JSON.stringify(selectedVariant ? JSON.parse(selectedVariant as string) : null);
+            const customMatch = JSON.stringify(item.customSelections) === JSON.stringify(customSelections ? JSON.parse(customSelections as string) : null);
+            return variantMatch && customMatch;
         });
 
         res.json({ inWishlist: !!item });
@@ -302,13 +322,19 @@ wishlistRouter.post('/sync', async (req: Request, res: Response) => {
             const selectedVariant = item.selectedVariant || null;
             const customSelections = item.customSelections || null;
 
-            const existing = await prisma.wishlistItem.findFirst({
+            const existingItems = (await prisma.wishlistItem.findMany({
                 where: {
                     userId,
                     productId: Number(productId),
-                    selectedColor,
-                    selectedSize,
                 },
+            })) as unknown as WishlistItemData[];
+
+            const existing = existingItems.find((ex) => {
+                const colorMatch = ex.selectedColor === (selectedColor || null);
+                const sizeMatch = ex.selectedSize === (selectedSize || null);
+                const variantMatch = JSON.stringify(ex.selectedVariant) === JSON.stringify(selectedVariant || null);
+                const customMatch = JSON.stringify(ex.customSelections) === JSON.stringify(customSelections || null);
+                return colorMatch && sizeMatch && variantMatch && customMatch;
             });
 
             if (!existing) {

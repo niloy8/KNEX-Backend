@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { Router } from "express";
-import { Prisma } from "../generated/prisma/index.js";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { deleteImageByUrl } from "../utils/cloudinary.js";
 
@@ -56,7 +56,7 @@ interface ProductSource {
     subSubCategoryId: number | null;
     brand: any;
     brandId: number | null;
-    reviews: any[];
+    reviews?: any[];
     createdAt: Date;
     updatedAt: Date;
     variants: {

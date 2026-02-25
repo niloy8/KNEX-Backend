@@ -53,7 +53,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install ALL dependencies (needed for build)
-RUN npm install
+RUN npm install '--omit=dev'
 
 # Copy project files
 COPY . .

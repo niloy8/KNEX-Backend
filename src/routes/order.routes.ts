@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { Prisma } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 
 export const orderRouter = Router();
@@ -155,8 +156,8 @@ orderRouter.post('/', async (req: Request, res: Response) => {
                 image,
                 selectedColor: item.selectedColor,
                 selectedSize: item.selectedSize,
-                selectedVariant: selectedVariant || null,
-                customSelections: customSelections || null,
+                selectedVariant: selectedVariant || Prisma.JsonNull,
+                customSelections: customSelections || Prisma.JsonNull,
             };
         });
 
